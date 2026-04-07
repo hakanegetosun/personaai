@@ -12,8 +12,13 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll() {
-          // Middleware refresh handling is enough for this app right now.
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+          }
         },
       },
     }

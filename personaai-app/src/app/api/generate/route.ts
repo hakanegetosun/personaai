@@ -521,20 +521,21 @@ export async function POST(
   try {
 const supabase = await createClient();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+const {
+  data: { user },
+  error: userError,
+} = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "UNAUTHORIZED",
-          message: "User not authenticated.",
-        },
-        { status: 401 }
-      );
-    }
+if (userError || !user) {
+  return NextResponse.json(
+    {
+      success: false,
+      error: "UNAUTHORIZED",
+      message: "User not authenticated.",
+    },
+    { status: 401 }
+  );
+}
 
     const body: GenerateRequestBody = await req.json().catch(() => ({}));
 
