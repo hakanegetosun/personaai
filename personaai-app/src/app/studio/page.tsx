@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
 import { createBrowserClient } from "@supabase/ssr";
 import { resolvePlan } from "@/config/plans";
+import ReelGenerationLoader from "@/components/ReelGenerationLoader";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -2532,28 +2533,16 @@ disabled={
                 {getButtonLabel()}
               </button>
 
-{activeJobId && (jobStatus === "queued" || jobStatus === "processing") && (
-  <div
-    style={{
-      marginTop: 14,
-      borderRadius: 16,
-      padding: 14,
-      background: "rgba(168,85,247,.10)",
-      border: "1px solid rgba(168,85,247,.22)",
-      color: "rgba(255,255,255,.88)",
-      fontSize: 12,
-      lineHeight: 1.5,
-      display: "flex",
-      alignItems: "flex-start",
-      gap: 8,
-    }}
-  >
-    <span style={{ flexShrink: 0 }}>⏳</span>
-    <span>
-      {jobStatus === "queued"
-        ? "Reel queued. Preparing generation..."
-        : "Reel is being generated in the background..."}
-    </span>
+{activeJobId && jobStatus && !generated && (
+  <div style={{ marginTop: 14 }}>
+    <ReelGenerationLoader
+      jobStatus={jobStatus}
+      onDismissError={() => {
+        setGenerateError(null);
+        setActiveJobId(null);
+        setJobStatus(null);
+      }}
+    />
   </div>
 )}
 
