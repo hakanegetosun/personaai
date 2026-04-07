@@ -6,7 +6,7 @@
 // - API (/api/generate)
 // -----------------------------------------------------------------------
 
-export type PersonaSource = "preset" | "custom";
+export type PersonaSource = "preset" | "custom" | "discover";
 
 // -----------------------------------------------------------------------
 // 🔹 ACTIVE PERSONA (used everywhere in frontend + API)
@@ -21,6 +21,14 @@ export interface ActivePersona {
   style: string;
 
   face_image_url: string | null;
+cover_image_url?: string | null;
+references?: Array<{
+  id?: string | number;
+  title?: string;
+  vibe?: string;
+  image_url?: string | null;
+  gradient?: string;
+}>;
 
   source: PersonaSource;
 

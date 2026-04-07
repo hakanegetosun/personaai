@@ -483,7 +483,7 @@ const [savedPersonas, setSavedPersonas] = useState<SavedPersona[]>([]);
 const [selectingSavedId, setSelectingSavedId] = useState<number | null>(null);
 const [openSavedPersona, setOpenSavedPersona] = useState<SavedPersona | null>(null); 
  const [activeId, setActiveId] = useState<string | null>(null);
-  const [activeSource, setActiveSource] = useState<"preset" | "custom" | null>(null);
+const [activeSource, setActiveSource] = useState<"preset" | "custom" | "discover" | null>(null);
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const [customPersonas, setCustomPersonas] = useState<CustomPersonaRow[]>([]);
   const [loadingCustom, setLoadingCustom] = useState(true);
@@ -731,15 +731,17 @@ const handleSelectSavedPersona = (persona: SavedPersona) => {
   saveActivePersona({
     id: String(persona.id),
     name: persona.name,
-    source: "preset",
+    source: "discover",
     niche: persona.tags?.[0] ?? "",
     gender: "",
     style: persona.chips?.[0] ?? "",
     face_image_url: persona.cover_image_url ?? "",
+    cover_image_url: persona.cover_image_url ?? "",
+    references: Array.isArray(persona.references) ? persona.references : [],
   });
 
   setActiveId(String(persona.id));
-  setActiveSource("preset");
+  setActiveSource("discover");
   setOpenSavedPersona(null);
 
   window.setTimeout(() => {
