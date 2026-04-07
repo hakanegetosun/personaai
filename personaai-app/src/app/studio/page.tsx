@@ -1389,9 +1389,18 @@ console.log("GENERATE BODY", {
       : "talking_selfie",
 });
 
+const {
+  data: { session },
+} = await supabase.auth.getSession();
+
+const accessToken = session?.access_token ?? null;
+
 const res = await fetch("/api/generate", {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
+headers: {
+  "Content-Type": "application/json",
+  ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+},
   body: JSON.stringify({
     personaId: persona.id,
     personaName: persona.name,
