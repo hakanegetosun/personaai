@@ -1490,17 +1490,41 @@ export default function DiscoverPage() {
   const persona = useMemo(() => PERSONAS[index % PERSONAS.length], [index]);
   const activeReference = persona.references[activeReferenceIndex] ?? null;
 
-  const savePersona = useCallback((personaToSave: Persona) => {
-    const raw =
-      typeof window !== "undefined" ? localStorage.getItem("saved_personas") : null;
-    const saved = raw ? JSON.parse(raw) : [];
-    const exists = saved.find((p: Persona) => p.id === personaToSave.id);
+const savePersona = useCallback((personaToSave: Persona) => {
+  const raw =
+    typeof window !== "undefined" ? localStorage.getItem("saved_personas") : null;
+  const saved = raw ? JSON.parse(raw) : [];
+  const exists = saved.find((p: { id: number }) => p.id === personaToSave.id);
 
-    if (!exists) {
-      saved.push(personaToSave);
-      localStorage.setItem("saved_personas", JSON.stringify(saved));
-    }
-  }, []);
+  const normalizedPersona = {
+    id: personaToSave.id,
+    name: personaToSave.name,
+    handle: personaToSave.handle,
+    initials: personaToSave.initials,
+    badge: personaToSave.badge,
+    tags: personaToSave.tags,
+    chips: personaToSave.chips,
+    bg: personaToSave.bg,
+    bio: personaToSave.bio,
+    bestFor: personaToSave.bestFor,
+    cover_image_url: personaToSave.coverImageUrl ?? "",
+    recommended: personaToSave.recommended,
+    references: Array.isArray(personaToSave.references)
+      ? personaToSave.references.map((ref) => ({
+          id: ref.id,
+          title: ref.title,
+          vibe: ref.vibe,
+          image_url: ref.imageUrl ?? "",
+          gradient: ref.gradient,
+        }))
+      : [],
+  };
+
+  if (!exists) {
+    saved.push(normalizedPersona);
+    localStorage.setItem("saved_personas", JSON.stringify(saved));
+  }
+}, []);
 
   const setActiveStudioPersona = useCallback((personaToUse: Persona) => {
     localStorage.setItem(
