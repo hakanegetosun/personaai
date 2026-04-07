@@ -2,7 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { createBrowserClient } from "@supabase/ssr";
 
 const TABS = [
   {
@@ -108,6 +109,18 @@ const TABS = [
 
 export default function TabBar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    router.replace("/login");
+    router.refresh();
+  }
 
   return (
     <div
@@ -152,25 +165,73 @@ export default function TabBar() {
               ? pathname === "/discover" || pathname === "/"
               : pathname?.startsWith(tab.href) ?? false;
 
-          return (
-            <Link
-              key={tab.key}
-              href={tab.href}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 4,
-                padding: "6px 10px",
-                borderRadius: 14,
-                textDecoration: "none",
-                color: isActive ? "rgba(255,255,255,.96)" : "rgba(255,255,255,.38)",
-                transition: "all 220ms ease",
-                position: "relative",
-                minWidth: 48,
-                background: isActive ? "rgba(168,85,247,.12)" : "transparent",
-              }}
-            >
+if (tab.key === "out") {
+  return (
+    <button
+      key={tab.key}
+      type="button"
+      onClick={handleSignOut}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 4,
+        padding: "6px 10px",
+        borderRadius: 14,
+        textDecoration: "none",
+        color: "rgba(255,255,255,.38)",
+        transition: "all 220ms ease",
+        position: "relative",
+        minWidth: 48,
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        fontFamily: "inherit",
+      }}
+    >
+      <div
+        style={{
+          color: "rgba(255,255,255,.38)",
+          transition: "color 220ms ease",
+        }}
+      >
+        {tab.icon}
+      </div>
+
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 500,
+          letterSpacing: 0.2,
+          transition: "all 220ms ease",
+          color: "rgba(255,255,255,.38)",
+        }}
+      >
+        {tab.label}
+      </span>
+    </button>
+  );
+}
+
+return (
+  <Link
+    key={tab.key}
+    href={tab.href}
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 4,
+      padding: "6px 10px",
+      borderRadius: 14,
+      textDecoration: "none",
+      color: isActive ? "rgba(255,255,255,.96)" : "rgba(255,255,255,.38)",
+      transition: "all 220ms ease",
+      position: "relative",
+      minWidth: 48,
+      background: isActive ? "rgba(168,85,247,.12)" : "transparent",
+    }}
+  >
               {isActive && (
                 <div
                   style={{
