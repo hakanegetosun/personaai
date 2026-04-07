@@ -8,7 +8,7 @@ import styles from "./auth.module.css";
 
 export default function LoginPage() {
   const router = useRouter();
-  const emailId = useId();
+const emailId = useId();
   const passwordId = useId();
 
   const [email, setEmail] = useState("");
@@ -41,8 +41,15 @@ export default function LoginPage() {
       return;
     }
 
-    router.replace("/studio");
-    router.refresh();
+let nextPath = "/studio";
+
+if (typeof window !== "undefined") {
+  const params = new URLSearchParams(window.location.search);
+  nextPath = params.get("next") || "/studio";
+}
+
+router.replace(nextPath);
+router.refresh();
   }
 
   return (
