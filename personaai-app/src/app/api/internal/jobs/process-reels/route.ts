@@ -62,17 +62,6 @@ export async function GET(req: NextRequest) {
   let claimed: ClaimedJobRow | null = null;
 
   try {
-    const authHeader = req.headers.get("authorization");
-    const expectedBearer = process.env.CRON_SECRET
-      ? `Bearer ${process.env.CRON_SECRET}`
-      : null;
-
-    if (expectedBearer && authHeader !== expectedBearer) {
-      return NextResponse.json(
-        { success: false, error: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
 
     const { data: claimedRows, error: claimError } = await supabaseAdmin.rpc(
       "claim_next_reel_job"
