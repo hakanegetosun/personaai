@@ -6,43 +6,67 @@ import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import styles from "./auth.module.css";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
   const emailId = useId();
   const passwordId = useId();
+  const confirmPasswordId = useId();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  async function handleLogin() {
-    if (!email || !password) {
-      setError("Please enter your email and password.");
+  async function handleSignup() {
+    if (!email || !password || !confirmPassword) {
+      setError("Please complete all fields.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
       return;
     }
 
     setLoading(true);
     setError(null);
+    setSuccess(null);
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    const { error: authError } = await supabase.auth.signUp({
       email: email.trim(),
       password,
+      options: {
+        emailRedirectTo:
+          typeof window !== "undefined"
+            ? `${window.location.origin}/login`
+            : undefined,
+      },
     });
 
     if (authError) {
-      setError("Incorrect email or password. Please try again.");
+      setError(authError.message);
       setLoading(false);
       return;
     }
 
-    router.replace("/studio");
-    router.refresh();
+    setSuccess("Account created. Check your email to confirm your account.");
+    setLoading(false);
+
+    window.setTimeout(() => {
+      router.replace("/login");
+    }, 1800);
   }
 
   return (
@@ -58,10 +82,14 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <h1 className={styles.heading}>Welcome back</h1>
+        <h1 className={styles.heading}>Create your creator workspace</h1>
         <p className={styles.subheading}>
-          Sign in to continue creating with your personas.
+          Start building personas, generating reels, and keeping identity consistent across every output.
         </p>
+
+        <div className={styles.info}>
+          Create personas, generate reels, and keep identity more consistent across your content.
+        </div>
 
         <div className={styles.form}>
           <div className={styles.field}>
@@ -78,50 +106,59 @@ export default function LoginPage() {
           </div>
 
           <div className={styles.field}>
-            <div className={styles.rowBetween}>
-              <label className={styles.label} htmlFor={passwordId}>Password</label>
-              <Link className={styles.inlineLink} href="/forgot-password">
-                Forgot password?
-              </Link>
-            </div>
+            <label className={styles.label} htmlFor={passwordId}>Password</label>
             <input
               id={passwordId}
               className={styles.input}
               type="password"
-              placeholder="••••••••"
+              placeholder="At least 6 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
+              autoComplete="new-password"
+            />
+          </div>
+
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor={confirmPasswordId}>Confirm password</label>
+            <input
+              id={confirmPasswordId}
+              className={styles.input}
+              type="password"
+              placeholder="Repeat your password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
             />
           </div>
 
           {error && <p className={styles.error}>{error}</p>}
+          {success && <p className={styles.info}>{success}</p>}
 
           <button
             type="button"
             className={styles.button}
-            onClick={() => void handleLogin()}
+            onClick={() => void handleSignup()}
             disabled={loading}
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Creating account..." : "Create account"}
           </button>
         </div>
 
         <div className={styles.divider}>
           <div className={styles.dividerLine} />
-          <span className={styles.dividerText}>New to PersonaAI?</span>
+          <span className={styles.dividerText}>Already have an account?</span>
           <div className={styles.dividerLine} />
         </div>
 
         <div className={styles.footerRow}>
-          <span className={styles.footerText}>Don't have an account?</span>
-          <Link className={styles.footerLink} href="/signup">
-            Create one free
+          <span className={styles.footerText}>Already signed up?</span>
+          <Link className={styles.footerLink} href="/login">
+            Sign in
           </Link>
         </div>
 
         <p className={styles.legal}>
-          By continuing you agree to our <a href="/terms">Terms</a> and{" "}
+          By creating an account you agree to our <a href="/terms">Terms</a> and{" "}
           <a href="/privacy">Privacy Policy</a>.
         </p>
       </div>

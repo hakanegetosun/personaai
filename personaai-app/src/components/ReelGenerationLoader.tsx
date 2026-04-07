@@ -6,6 +6,7 @@ type JobStatus = "queued" | "processing" | "completed" | "failed";
 
 interface ReelGenerationLoaderProps {
   jobStatus: JobStatus;
+  jobId: string;
   onDismissError?: () => void;
 }
 

@@ -2535,9 +2535,10 @@ disabled={
 
 {activeJobId && jobStatus && !generated && (
   <div style={{ marginTop: 14 }}>
-    <ReelGenerationLoader
-      jobStatus={jobStatus}
-      onDismissError={() => {
+<ReelGenerationLoader
+  jobStatus={jobStatus}
+  jobId={activeJobId}
+  onDismissError={() => {
         setGenerateError(null);
         setActiveJobId(null);
         setJobStatus(null);

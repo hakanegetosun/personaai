@@ -3,6 +3,45 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { generateImageContent } from "@/lib/generation/image";
 import { generateVideoContent } from "@/lib/generation/video";
 
+async function uploadRemoteVideoToSupabaseStorage(params: {
+  remoteUrl: string;
+  userId: string;
+  jobId: string;
+}) {
+  const { remoteUrl, userId, jobId } = params;
+
+  const response = await fetch(remoteUrl);
+
+  if (!response.ok) {
+    throw new Error(`Failed to download remote video: ${response.status}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  const filePath = `${userId}/${jobId}.mp4`;
+
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from("generated-reels")
+    .upload(filePath, buffer, {
+      contentType: "video/mp4",
+      upsert: true,
+    });
+
+  if (uploadError) {
+    throw new Error(`Storage upload failed: ${uploadError.message}`);
+  }
+
+  const { data: publicUrlData } = supabaseAdmin.storage
+    .from("generated-reels")
+    .getPublicUrl(filePath);
+
+  return {
+    filePath,
+    publicUrl: publicUrlData.publicUrl,
+  };
+}
+
 type ClaimedJobRow = {
   id: string;
   user_id: string;
@@ -166,13 +205,19 @@ visualDoNotUse: Array.isArray(payload.advancedPromptPayload?.visualDoNotUse)
 
     const finalPrompt = reelPromptParts.filter(Boolean).join(" ");
 
-    const videoResult = await generateVideoContent({
-      prompt: finalPrompt,
+    const videoResult = await generateVideoContent({    
+  prompt: finalPrompt,
       startImageUrl: imageResult.imageUrl,
       duration: 5,
       generateAudio: false,
       aspectRatio: "9:16",
     });
+
+const storedVideo = await uploadRemoteVideoToSupabaseStorage({
+  remoteUrl: videoResult.videoUrl,
+  userId: claimed.user_id,
+  jobId: claimed.id,
+});
 
     const finalTitle = `${payload.personaName || "Persona"} Reel`;
 
@@ -201,7 +246,7 @@ visualDoNotUse: Array.isArray(payload.advancedPromptPayload?.visualDoNotUse)
       .update({
         status: "completed",
         image_url: imageResult.imageUrl,
-        video_url: videoResult.videoUrl,
+video_url: storedVideo.publicUrl,
         thumbnail_url: videoResult.thumbnailUrl,
         title: finalTitle,
         caption: finalCaption,
@@ -230,7 +275,7 @@ visualDoNotUse: Array.isArray(payload.advancedPromptPayload?.visualDoNotUse)
         aspect_ratio: "9:16",
         type: "reel",
         format: "reel",
-        video_url: videoResult.videoUrl,
+video_url: storedVideo.publicUrl,
         thumbnail_url: videoResult.thumbnailUrl,
         status: "ready",
         prompt: finalPrompt,
