@@ -58,7 +58,7 @@ type JobPayload = {
 
 const MAX_RETRIES = 3;
 
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest) {
   let claimed: ClaimedJobRow | null = null;
 
   try {

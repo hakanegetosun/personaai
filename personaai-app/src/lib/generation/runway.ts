@@ -15,13 +15,21 @@ export type RunwayReelResult = {
   thumbnailUrl: string | null;
 };
 
-const client = new RunwayML({
-  apiKey: process.env.RUNWAYML_API_SECRET,
-});
+function getRunwayClient() {
+  const apiKey = process.env.RUNWAYML_API_SECRET;
+
+  if (!apiKey) {
+    throw new Error("RUNWAYML_API_SECRET is missing.");
+  }
+
+  return new RunwayML({ apiKey });
+}
 
 export async function generateReelWithRunway(
   input: RunwayReelInput
 ): Promise<RunwayReelResult> {
+const client = getRunwayClient();
+
   if (!process.env.RUNWAYML_API_SECRET) {
     throw new Error("Missing RUNWAYML_API_SECRET");
   }
