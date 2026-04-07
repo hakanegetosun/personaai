@@ -28,11 +28,32 @@ type GeneratedResult = {
 
 type GenerateSuccessResponse = {
   success: true;
-  content: GeneratedResult;
+  mode?: "direct" | "async_reel";
+  jobId?: string;
+  status?: "queued" | "processing" | "completed" | "failed";
+  content?: GeneratedResult;
   usageType: "video" | "story" | "post";
   usage: { used: number; limit: number; remaining: number };
 };
-
+type JobStatusResponse =
+  | {
+      success: true;
+      job: {
+        id: string;
+        status: "queued" | "processing" | "completed" | "failed";
+        title?: string | null;
+        caption?: string | null;
+        image_url?: string | null;
+        video_url?: string | null;
+        thumbnail_url?: string | null;
+        error_message?: string | null;
+      };
+    }
+  | {
+      success: false;
+      error: string;
+      message?: string;
+    };
 type GenerateErrorResponse = {
   success: false;
   error: string;
@@ -812,6 +833,11 @@ const [allureMode, setAllureMode] = useState(false);
   } | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
 
+const [activeJobId, setActiveJobId] = useState<string | null>(null);
+const [jobStatus, setJobStatus] = useState<
+  "queued" | "processing" | "completed" | "failed" | null
+>(null);
+
   const [userPlan, setUserPlan] = useState<ResolvedPlan | null>(null);
   const [contentUsage, setContentUsage] = useState<ContentUsage | null>(null);
 
@@ -898,7 +924,11 @@ const [smartAccess, setSmartAccess] = useState({
   }, [plan, contentType]);
 
   function getButtonLabel(): string {
-    const contentLabel =
+if (activeJobId && (jobStatus === "queued" || jobStatus === "processing")) {
+  return jobStatus === "queued" ? "Reel queued..." : "Generating reel...";
+}  
+
+  const contentLabel =
       contentType === "story" ? "Story" : contentType === "post" ? "Post" : "Reel";
 
     if (loading) return "Generating...";
@@ -1141,6 +1171,150 @@ if (!cancelled) {
     return () => document.removeEventListener("mousedown", onOutside);
   }, [showPersonaDropdown]);
 
+useEffect(() => {
+  let cancelled = false;
+
+  async function restoreActiveJob() {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const res = await fetch(
+        `/api/generate/job/latest?userId=${encodeURIComponent(user.id)}`
+      );
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success || !data.job) {
+        return;
+      }
+
+      if (cancelled) return;
+
+      if (data.job.status === "queued" || data.job.status === "processing") {
+        setActiveJobId(data.job.id);
+        setJobStatus(data.job.status);
+      }
+    } catch (err) {
+      console.error("RESTORE ACTIVE JOB ERROR", err);
+    }
+  }
+
+  void restoreActiveJob();
+
+  return () => {
+    cancelled = true;
+  };
+}, [supabase]);
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function restoreActiveJob() {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const res = await fetch(
+        `/api/generate/job/latest?userId=${encodeURIComponent(user.id)}`
+      );
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success || !data.job) {
+        return;
+      }
+
+      if (cancelled) return;
+
+      if (data.job.status === "queued" || data.job.status === "processing") {
+        setActiveJobId(data.job.id);
+        setJobStatus(data.job.status);
+      }
+    } catch (err) {
+      console.error("RESTORE ACTIVE JOB ERROR", err);
+    }
+  }
+
+  void restoreActiveJob();
+
+  return () => {
+    cancelled = true;
+  };
+}, [supabase]);
+
+useEffect(() => {
+  if (!activeJobId) return;
+
+  let cancelled = false;
+
+  async function pollJob() {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+const res = await fetch(
+`/api/generate/job?jobId=${encodeURIComponent(
+  activeJobId ?? ""
+)}&userId=${encodeURIComponent(user.id)}`
+);
+
+      const data: JobStatusResponse = await res.json();
+
+      if (!res.ok || !data.success) {
+        return;
+      }
+
+      if (cancelled) return;
+
+      setJobStatus(data.job.status);
+
+      if (data.job.status === "completed" && data.job.video_url) {
+        setGenerated({
+          title: data.job.title ?? "Generated Reel",
+          caption: data.job.caption ?? "",
+          video_url: data.job.video_url,
+          thumbnail_url: data.job.thumbnail_url ?? data.job.image_url ?? "",
+          format: "reel",
+        });
+        setGenerateError(null);
+        setActiveJobId(null);
+        setJobStatus("completed");
+      }
+
+      if (data.job.status === "failed") {
+        setGenerateError(
+          data.job.error_message ?? "Reel generation failed."
+        );
+        setActiveJobId(null);
+        setJobStatus("failed");
+      }
+    } catch (err) {
+      console.error("JOB POLL ERROR", err);
+    }
+  }
+
+  void pollJob();
+
+  const interval = setInterval(() => {
+    void pollJob();
+  }, 5000);
+
+  return () => {
+    cancelled = true;
+    clearInterval(interval);
+  };
+}, [activeJobId, supabase]);
+
   function selectPersona(persona: ActivePersona) {
     setActivePersona(persona);
     setShowPersonaDropdown(false);
@@ -1204,47 +1378,85 @@ if (!cancelled) {
 
       const persona = activePersona ?? DEFAULT_PERSONA;
 
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          personaId: persona.id,
-          personaName: persona.name,
-          personaType: persona.type,
-          contentType,
-          planTitle: matchedPlanItem?.title ?? null,
-          planDay: matchedPlanItem?.day ?? null,
-          planType: matchedPlanItem?.type ?? null,
-          niche: personaNiche ?? null,
-          region: DEFAULT_REGION,
-          smartControls,
-faceImageUrl:
-  (persona as any).face_image_url ??
-  (persona as any).cover_image_url ??
-  "",
-coverImageUrl: (persona as any).cover_image_url ?? "",
-references: Array.isArray((persona as any).references)
-  ? (persona as any).references
-  : [],
-identityLock,
-allureMode,
-        }),
-      });
+console.log("GENERATE BODY", {
+  personaId: persona.id,
+  contentType,
+  shotPresetId:
+    contentType === "post"
+      ? "soft_smile_closeup"
+      : contentType === "story"
+      ? "talking_selfie"
+      : "talking_selfie",
+});
 
-      const data: GenerateResponse = await res.json();
+const res = await fetch("/api/generate", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    personaId: persona.id,
+    personaName: persona.name,
+    personaType: persona.type,
+    contentType,
+    shotPresetId:
+      contentType === "post"
+        ? "soft_smile_closeup"
+        : contentType === "story"
+        ? "talking_selfie"
+        : "talking_selfie",
+    planTitle: matchedPlanItem?.title ?? null,
+    planDay: matchedPlanItem?.day ?? null,
+    planType: matchedPlanItem?.type ?? null,
+    niche: personaNiche ?? null,
+    region: DEFAULT_REGION,
+    smartControls,
+    faceImageUrl:
+      (persona as any).face_image_url ??
+      (persona as any).cover_image_url ??
+      "",
+    coverImageUrl: (persona as any).cover_image_url ?? "",
+    references: Array.isArray((persona as any).references)
+      ? (persona as any).references
+      : [],
+    identityLock,
+    allureMode,
+  }),
+});
 
-      if (!res.ok || !data.success) {
-        setGenerated(null);
-        setGenerateError(
-          data.success === false
-            ? data.message
-            : "Something went wrong during generation."
-        );
-        return;
-      }
+const rawText = await res.text();
+console.log("GENERATE RAW STATUS", res.status);
+console.log("GENERATE RAW TEXT", rawText);
 
-      setGenerated(data.content);
-      setUsageInfo(data.usage);
+let data: GenerateResponse;
+try {
+  data = JSON.parse(rawText) as GenerateResponse;
+} catch (parseError) {
+  console.error("GENERATE JSON PARSE ERROR", parseError);
+  throw new Error(`Failed to parse API response: ${rawText}`);
+}
+
+console.log("GENERATE PARSED DATA", data);
+
+if (!res.ok || !data.success) {
+  setGenerated(null);
+  setGenerateError(
+    data.success === false
+      ? data.message
+      : "Something went wrong during generation."
+  );
+  return;
+}
+
+if (data.mode === "async_reel" && data.jobId) {
+  setActiveJobId(data.jobId);
+  setJobStatus(data.status ?? "queued");
+  setGenerated(null);
+} else if (data.content) {
+  setGenerated(data.content);
+  setActiveJobId(null);
+  setJobStatus(null);
+}
+
+setUsageInfo(data.usage);
 
       setContentUsage((prev) => {
         if (!prev) return prev;
@@ -1277,12 +1489,14 @@ allureMode,
           },
         };
       });
-    } catch (e) {
-      console.error(e);
-      setGenerateError("Unexpected error while generating content.");
-    } finally {
-      setLoading(false);
-    }
+} catch (e) {
+  console.error("GENERATE FRONTEND ERROR", e);
+  setGenerateError(
+    e instanceof Error ? e.message : "Unexpected error while generating content."
+  );
+} finally {
+  setLoading(false);
+}
   };
 
   function handleBuyOnDemand() {
@@ -2304,7 +2518,11 @@ opacity: locked ? 0.72 : 1,
 
                   void generatePlan();
                 }}
-                disabled={loading || (isCurrentLimitReached && !canBuyOnDemand)}
+disabled={
+  loading ||
+  activeJobId !== null ||
+  (isCurrentLimitReached && !canBuyOnDemand)
+}
                 style={{
                   width: "100%",
                   padding: "15px 14px",
@@ -2336,6 +2554,31 @@ opacity: locked ? 0.72 : 1,
               >
                 {getButtonLabel()}
               </button>
+
+{activeJobId && (jobStatus === "queued" || jobStatus === "processing") && (
+  <div
+    style={{
+      marginTop: 14,
+      borderRadius: 16,
+      padding: 14,
+      background: "rgba(168,85,247,.10)",
+      border: "1px solid rgba(168,85,247,.22)",
+      color: "rgba(255,255,255,.88)",
+      fontSize: 12,
+      lineHeight: 1.5,
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 8,
+    }}
+  >
+    <span style={{ flexShrink: 0 }}>⏳</span>
+    <span>
+      {jobStatus === "queued"
+        ? "Reel queued. Preparing generation..."
+        : "Reel is being generated in the background..."}
+    </span>
+  </div>
+)}
 
               {generateError && (
                 <div

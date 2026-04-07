@@ -3,6 +3,10 @@ import { createClient as createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { resolvePlan } from "@/config/plans";
 import { generateImageContent } from "@/lib/generation/image";
+import { resolveGenerationConfig, selectBestCandidate } from "@/lib/generation/pipeline";
+import type { GenerationRequestInput, GeneratedCandidate } from "@/lib/generation/types";
+import type { AppPlan, AllureProfile } from "@/lib/plans/capabilities";
+import { generateVideoContent } from "@/lib/generation/video";
 
 type GenerateFormat = "reel" | "story" | "post";
 type ContentType = "reel" | "story" | "post";
@@ -83,8 +87,14 @@ function emptyTrendSignals(): TrendSignals {
   };
 }
 
-function uniqueTop(items: Array<string | null | undefined>, limit = 6): string[] {
-  return [...new Set(items.map((x) => (x ?? "").trim()).filter(Boolean))].slice(0, limit);
+function uniqueTop(
+  items: Array<string | null | undefined>,
+  limit = 6
+): string[] {
+  return [...new Set(items.map((x) => (x ?? "").trim()).filter(Boolean))].slice(
+    0,
+    limit
+  );
 }
 
 function hasAnyTrendSignals(signals: TrendSignals): boolean {
@@ -173,18 +183,25 @@ async function getTrendSignals(params: {
     const rows = (data ?? []) as TrendSnapshotRow[];
 
     const sortedRows = [...rows].sort((a, b) => {
-      const platformA = preferredPlatforms.indexOf((a.platform ?? "").toLowerCase());
-      const platformB = preferredPlatforms.indexOf((b.platform ?? "").toLowerCase());
+      const platformA = preferredPlatforms.indexOf(
+        (a.platform ?? "").toLowerCase()
+      );
+      const platformB = preferredPlatforms.indexOf(
+        (b.platform ?? "").toLowerCase()
+      );
 
       const pa = platformA === -1 ? 999 : platformA;
       const pb = platformB === -1 ? 999 : platformB;
 
       if (pa !== pb) return pa - pb;
 
-      const sa = Number(b.signal_strength ?? 0) - Number(a.signal_strength ?? 0);
+      const sa =
+        Number(b.signal_strength ?? 0) - Number(a.signal_strength ?? 0);
       if (sa !== 0) return sa;
 
-      return String(b.captured_at ?? "").localeCompare(String(a.captured_at ?? ""));
+      return String(b.captured_at ?? "").localeCompare(
+        String(a.captured_at ?? "")
+      );
     });
 
     return normalizeTrendRows(sortedRows);
@@ -323,7 +340,9 @@ function buildGenerationPromptSummary(input: {
     `trendSignals=${hasAnyTrendSignals(trendSignals) ? "yes" : "no"}`,
     trendSignals.formats[0] ? `trendFormat=${trendSignals.formats[0]}` : null,
     trendSignals.hooks[0] ? `trendHook=${trendSignals.hooks[0]}` : null,
-    trendSignals.audioMoods[0] ? `trendAudio=${trendSignals.audioMoods[0]}` : null,
+    trendSignals.audioMoods[0]
+      ? `trendAudio=${trendSignals.audioMoods[0]}`
+      : null,
     reelPlanningContext?.viralAngle
       ? `reelViralAngle=${reelPlanningContext.viralAngle}`
       : null,
@@ -352,27 +371,33 @@ type GenerateRequestBody = {
   personaName?: string;
   personaType?: "preset" | "custom";
   contentType?: ContentType;
+  shotPresetId?: string;
+  prompt?: string;
+  allureProfile?: AllureProfile;
   onDemand?: boolean;
   planTitle?: string | null;
   planDay?: string | null;
   planType?: string | null;
   niche?: string | null;
   region?: string | null;
-smartControls?: SmartControlsInput;
-faceImageUrl?: string | null;
-coverImageUrl?: string | null;
-references?: Array<{
-  image_url?: string | null;
-  [key: string]: unknown;
-}> | null;
-identityLock?: boolean;
-allureMode?: boolean;
+  smartControls?: SmartControlsInput;
+  faceImageUrl?: string | null;
+  coverImageUrl?: string | null;
+  references?: Array<{
+    image_url?: string | null;
+    [key: string]: unknown;
+  }> | null;
+  identityLock?: boolean;
+  allureMode?: boolean;
 };
 
 type GenerateResponse =
   | {
       success: true;
-      content: {
+      mode?: "direct" | "async_reel";
+      jobId?: string;
+      status?: "queued" | "processing" | "completed" | "failed";
+      content?: {
         title: string;
         caption: string;
         video_url: string;
@@ -406,16 +431,16 @@ function buildSmartControlsPromptBlock(
   const lines: string[] = [];
 
   if (smartControls.strategy) {
-const strategyMap: Record<string, string> = {
-  viral_reach:
-    "Prioritize stronger hooks, thumb-stopping first impressions, faster social-native energy, more immediate visual payoff, and content patterns that feel highly shareable and save-worthy. Favor bolder framing, stronger opening moments, and more platform-native attention capture.",
-  brand_safe:
-    "Keep the output polished, clean, tasteful, premium, and broadly advertiser-safe. Avoid risky styling, excessive sensuality, chaotic framing, messy environments, controversial cues, or anything that feels too provocative, low-trust, or off-brand.",
-  conversion:
-    "Bias the content toward conversion-oriented framing. The image should feel persuasive, value-forward, clear, and commercially useful, with stronger product relevance, stronger action intent, more deliberate composition, and a subtle performance-marketing mindset.",
-  community:
-    "Encourage relatability, warmth, comments, saves, repeat engagement, and audience connection. Favor human moments, approachable realism, emotionally accessible framing, and content that feels interactive, personal, and easy to respond to.",
-};
+    const strategyMap: Record<string, string> = {
+      viral_reach:
+        "Prioritize stronger hooks, thumb-stopping first impressions, faster social-native energy, more immediate visual payoff, and content patterns that feel highly shareable and save-worthy. Favor bolder framing, stronger opening moments, and more platform-native attention capture.",
+      brand_safe:
+        "Keep the output polished, clean, tasteful, premium, and broadly advertiser-safe. Avoid risky styling, excessive sensuality, chaotic framing, messy environments, controversial cues, or anything that feels too provocative, low-trust, or off-brand.",
+      conversion:
+        "Bias the content toward conversion-oriented framing. The image should feel persuasive, value-forward, clear, and commercially useful, with stronger product relevance, stronger action intent, more deliberate composition, and a subtle performance-marketing mindset.",
+      community:
+        "Encourage relatability, warmth, comments, saves, repeat engagement, and audience connection. Favor human moments, approachable realism, emotionally accessible framing, and content that feels interactive, personal, and easy to respond to.",
+    };
 
     lines.push(
       `Strategy Priority: ${
@@ -426,10 +451,10 @@ const strategyMap: Record<string, string> = {
 
   if (smartControls.look) {
     const lookMap: Record<string, string> = {
-luxury_realism:
-  "Use an elevated premium-but-believable visual style. The environment should feel upscale, refined, clean, curated, and aspirational while still realistic. Favor cleaner composition, tidier surfaces, better materials, tasteful wardrobe styling, soft controlled natural light, and polished lifestyle cues. Avoid messy clutter, cheap-looking domestic randomness, harsh casual chaos, and low-effort everyday staging.",
-phone_native:
-  "Keep visuals raw, natural, phone-camera-native, candid, spontaneous, and socially believable. Favor slightly imperfect framing, lived-in environments, casual everyday realism, natural clutter, unpolished composition, and authentic creator energy. Avoid premium editorial polish, luxury staging, over-clean composition, excessively curated styling, and ad-like perfection.",
+      luxury_realism:
+        "Use an elevated premium-but-believable visual style. The environment should feel upscale, refined, clean, curated, and aspirational while still realistic. Favor cleaner composition, tidier surfaces, better materials, tasteful wardrobe styling, soft controlled natural light, and polished lifestyle cues. Avoid messy clutter, cheap-looking domestic randomness, harsh casual chaos, and low-effort everyday staging.",
+      phone_native:
+        "Keep visuals raw, natural, phone-camera-native, candid, spontaneous, and socially believable. Favor slightly imperfect framing, lived-in environments, casual everyday realism, natural clutter, unpolished composition, and authentic creator energy. Avoid premium editorial polish, luxury staging, over-clean composition, excessively curated styling, and ad-like perfection.",
       clean_editorial:
         "Use polished composition and clean styling while still avoiding fake AI beauty or overprocessed skin.",
       warm_lifestyle:
@@ -442,16 +467,16 @@ phone_native:
   }
 
   if (smartControls.motion) {
-const motionMap: Record<string, string> = {
-  calm:
-    "Keep motion softer, smoother, slower, more controlled, and less attention-seeking. Favor relaxed body language, understated movement, quieter visual rhythm, and a composed, effortless feel rather than high stimulation or aggressive social pacing.",
-  balanced:
-    "Keep motion natural, creator-native, believable, and socially fluent. Favor moderate pacing, realistic movement, everyday human energy, and content that feels platform-ready without becoming too slow, too polished, or too hyperactive.",
-  fast_hooky:
-    "Use faster social-native rhythm, stronger opening motion cues, more immediate attention capture, and more dynamic creator energy. Favor bolder body language, stronger first-frame visual pull, and a more instantly engaging short-form feel.",
-  cinematic_social:
-    "Keep motion elevated, stylish, and visually refined, but still compatible with social platforms. Favor graceful movement, polished pacing, premium visual rhythm, and a more aspirational feel without drifting into artificial film-scene aesthetics.",
-};
+    const motionMap: Record<string, string> = {
+      calm:
+        "Keep motion softer, smoother, slower, more controlled, and less attention-seeking. Favor relaxed body language, understated movement, quieter visual rhythm, and a composed, effortless feel rather than high stimulation or aggressive social pacing.",
+      balanced:
+        "Keep motion natural, creator-native, believable, and socially fluent. Favor moderate pacing, realistic movement, everyday human energy, and content that feels platform-ready without becoming too slow, too polished, or too hyperactive.",
+      fast_hooky:
+        "Use faster social-native rhythm, stronger opening motion cues, more immediate attention capture, and more dynamic creator energy. Favor bolder body language, stronger first-frame visual pull, and a more instantly engaging short-form feel.",
+      cinematic_social:
+        "Keep motion elevated, stylish, and visually refined, but still compatible with social platforms. Favor graceful movement, polished pacing, premium visual rhythm, and a more aspirational feel without drifting into artificial film-scene aesthetics.",
+    };
 
     lines.push(
       `Motion Direction: ${
@@ -464,14 +489,12 @@ const motionMap: Record<string, string> = {
     const priorityMap: Record<string, string> = {
       face_consistency:
         "Protect face identity consistency as a top priority across the final output.",
-      realism:
-        "Prioritize realism and avoid artificial AI-looking results.",
+      realism: "Prioritize realism and avoid artificial AI-looking results.",
       hook_strength:
         "Improve the first impression and opening-frame attention strength.",
       brand_match:
         "Keep the result closely aligned with brand direction and persona identity.",
-      conversion:
-        "Bias toward performance and action-taking behavior.",
+      conversion: "Bias toward performance and action-taking behavior.",
       trend_fit:
         "Keep output aligned with current short-form social content patterns.",
     };
@@ -515,37 +538,39 @@ export async function POST(
 
     const body: GenerateRequestBody = await req.json().catch(() => ({}));
 
-const faceImageUrl =
-  body.faceImageUrl ??
-  body.coverImageUrl ??
-  null;
+    if (!body.personaId || !body.contentType || !body.shotPresetId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "INVALID_REQUEST",
+          message: "personaId, contentType ve shotPresetId zorunlu.",
+        },
+        { status: 400 }
+      );
+    }
 
-const coverImageUrl =
-  body.coverImageUrl ??
-  null;
+    const faceImageUrl = body.faceImageUrl ?? body.coverImageUrl ?? null;
+    const coverImageUrl = body.coverImageUrl ?? null;
 
-const referenceImages = Array.isArray(body.references)
-  ? body.references
-      .map((ref: any) => ref?.image_url)
-      .filter(Boolean)
-  : [];
+    const referenceImages = Array.isArray(body.references)
+      ? body.references
+          .map(
+            (ref: { image_url?: string | null; [key: string]: unknown }) =>
+              ref?.image_url
+          )
+          .filter(Boolean)
+      : [];
 
-const smartControls: SmartControlsInput = {
-  strategy: body.smartControls?.strategy ?? null,
-  look: body.smartControls?.look ?? null,
-  motion: body.smartControls?.motion ?? null,
-  priorities: body.smartControls?.priorities ?? [],
-  customNote: body.smartControls?.customNote ?? null,
-};
+    const smartControls: SmartControlsInput = {
+      strategy: body.smartControls?.strategy ?? null,
+      look: body.smartControls?.look ?? null,
+      motion: body.smartControls?.motion ?? null,
+      priorities: body.smartControls?.priorities ?? [],
+      customNote: body.smartControls?.customNote ?? null,
+    };
 
-const smartControlsPromptBlock = buildSmartControlsPromptBlock(smartControls);
-
-    const contentType: ContentType =
-      body.contentType === "story" ||
-      body.contentType === "post" ||
-      body.contentType === "reel"
-        ? body.contentType
-        : "reel";
+    const smartControlsPromptBlock =
+      buildSmartControlsPromptBlock(smartControls);
 
     let personaFaceImageUrl: string | null = null;
     let personaNiche: string | null = null;
@@ -602,7 +627,38 @@ const smartControlsPromptBlock = buildSmartControlsPromptBlock(smartControls);
 
     const currentPlanId: string | null = profile?.current_plan_id ?? null;
     const canUseAdvancedControls = canUseAdvancedPromptControls(currentPlanId);
-    const plan = resolvePlan(currentPlanId);
+
+    // resolvedPlan is used exclusively for usage limits, pricing, and onDemand checks
+    const resolvedPlan = resolvePlan(currentPlanId);
+
+    // appPlan is used exclusively as the pipeline identity type
+    const appPlan: AppPlan =
+      currentPlanId === "agency"
+        ? "agency"
+        : currentPlanId === "creator"
+        ? "creator"
+        : "pro";
+
+    const pipelineInput: GenerationRequestInput = {
+      personaId: body.personaId,
+      userId: user.id,
+      plan: appPlan,
+      contentType: body.contentType,
+      shotPresetId: body.shotPresetId,
+      prompt: body.prompt,
+      allureMode: body.allureMode ?? true,
+      identityLock: body.identityLock ?? false,
+      allureProfile: body.allureProfile,
+    };
+
+    const generationConfig = resolveGenerationConfig(pipelineInput);
+console.log("PIPELINE DEBUG", {
+  appPlan,
+  pipelineInput,
+  generationConfig,
+});
+    const contentType: ContentType = generationConfig.contentType;
+    const shotPresetId = generationConfig.shotPresetId;
 
     const usageMonth = new Date().toISOString().slice(0, 7);
 
@@ -633,19 +689,19 @@ const smartControlsPromptBlock = buildSmartControlsPromptBlock(smartControls);
 
     const limit =
       usageType === "post"
-        ? plan.limits.post
+        ? resolvedPlan.limits.post
         : usageType === "story"
-        ? plan.limits.story
-        : plan.limits.video;
+        ? resolvedPlan.limits.story
+        : resolvedPlan.limits.video;
 
     if (used >= limit) {
-      if (usageType === "video" && plan.onDemand.enabled) {
+      if (usageType === "video" && resolvedPlan.onDemand.enabled) {
         return NextResponse.json(
           {
             success: false,
             error: "LIMIT_REACHED",
             message: `${usageType} limit reached`,
-            onDemand: plan.onDemand,
+            onDemand: resolvedPlan.onDemand,
           },
           { status: 403 }
         );
@@ -708,10 +764,10 @@ const smartControlsPromptBlock = buildSmartControlsPromptBlock(smartControls);
       const imageResult = await generateImageContent({
         personaName: body.personaName,
         contentType,
-referenceImageUrl: personaFaceImageUrl,
-referenceImageUrls: personaFaceImageUrl ? [personaFaceImageUrl] : [],
-identityLock: body.identityLock ?? true,
-allureMode: body.allureMode ?? false,
+        referenceImageUrl: personaFaceImageUrl,
+        referenceImageUrls: personaFaceImageUrl ? [personaFaceImageUrl] : [],
+        identityLock: body.identityLock ?? true,
+        allureMode: body.allureMode ?? false,
         niche: effectiveNiche,
         style: personaStyle,
         personality: personaPersonality,
@@ -734,11 +790,13 @@ allureMode: body.allureMode ?? false,
             }
           : null,
         smartControls,
-smartControlsPromptBlock,
+        smartControlsPromptBlock,
       });
 
       const postStoryCaptionParts = [
-        contentType === "post" ? "Generated post with AI" : "Generated story with AI",
+        contentType === "post"
+          ? "Generated post with AI"
+          : "Generated story with AI",
         smartControls?.look ? `Look: ${smartControls.look}` : null,
         smartControls?.motion ? `Motion: ${smartControls.motion}` : null,
       ];
@@ -754,28 +812,125 @@ smartControlsPromptBlock,
         format: contentType,
         face_image_url: personaFaceImageUrl,
       };
-    } else {
-      const reelCaptionParts = [
-        "Generated reel with AI",
-        reelPlanningContext?.hookOptions[0]
-          ? `Hook: ${reelPlanningContext.hookOptions[0]}`
-          : null,
-        reelPlanningContext?.audioDirection
-          ? `Audio mood: ${reelPlanningContext.audioDirection}`
-          : null,
-        smartControls?.look ? `Look: ${smartControls.look}` : null,
-        smartControls?.motion ? `Motion: ${smartControls.motion}` : null,
-      ];
 
-      content = {
-        title: `${body.personaName || "Persona"} Reel`,
-        caption: reelCaptionParts.filter(Boolean).join(" | "),
-        video_url: "https://example.com/video.mp4",
-        thumbnail_url: "https://placehold.co/1080x1920",
-        format: contentType,
-        face_image_url: personaFaceImageUrl,
-      };
-    }
+} else {
+  const reelCaptionParts = [
+    "Reel job queued",
+    reelPlanningContext?.hookOptions?.[0]
+      ? `Hook: ${reelPlanningContext.hookOptions[0]}`
+      : null,
+    reelPlanningContext?.audioDirection
+      ? `Audio mood: ${reelPlanningContext.audioDirection}`
+      : null,
+    smartControls?.look ? `Look: ${smartControls.look}` : null,
+    smartControls?.motion ? `Motion: ${smartControls.motion}` : null,
+  ];
+
+  const queuedTitle = `${body.personaName || "Persona"} Reel`;
+  const queuedCaption = reelCaptionParts.filter(Boolean).join(" | ");
+
+  const { data: jobRow, error: jobInsertError } = await supabaseAdmin
+    .from("generation_jobs")
+    .insert({
+      user_id: user.id,
+      persona_id: body.personaId ?? null,
+      content_type: contentType,
+      status: "queued",
+      prompt: buildGenerationPromptSummary({
+        contentType,
+        personaName: body.personaName,
+        planTitle: body.planTitle ?? null,
+        planDay: body.planDay ?? null,
+        planType: body.planType ?? null,
+        niche: effectiveNiche,
+        region: effectiveRegion,
+        hasAdvancedControls: canUseAdvancedControls,
+        trendSignals,
+        reelPlanningContext,
+        smartControls,
+      }),
+      title: queuedTitle,
+      caption: queuedCaption,
+payload: {
+  userId: user.id,
+  personaId: body.personaId,
+  personaName: body.personaName,
+  personaType: body.personaType,
+  contentType,
+  planTitle: body.planTitle ?? null,
+  planDay: body.planDay ?? null,
+  planType: body.planType ?? null,
+  niche: effectiveNiche,
+  region: effectiveRegion,
+  smartControls,
+  faceImageUrl:
+    body.faceImageUrl ??
+    body.coverImageUrl ??
+    personaFaceImageUrl ??
+    null,
+  coverImageUrl: body.coverImageUrl ?? null,
+  references: Array.isArray(body.references) ? body.references : [],
+  identityLock: body.identityLock ?? true,
+  allureMode: body.allureMode ?? false,
+  advancedPromptPayload,
+  trendSignals,
+  reelPlanningContext,
+  personaStyle,
+  personaPersonality,
+  personaFaceImageUrl,
+},
+    })
+.select("id, status, created_at")
+    .single();
+
+  if (jobInsertError || !jobRow?.id) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "JOB_CREATE_FAILED",
+        message: jobInsertError?.message ?? "Failed to create reel generation job.",
+      },
+      { status: 500 }
+    );
+  }
+  const newUsed = used + 1;
+
+  if (usageRow?.id) {
+    const updatePayload =
+      usageType === "post"
+        ? { posts_used: newUsed }
+        : usageType === "story"
+        ? { stories_used: newUsed }
+        : { videos_used: newUsed };
+
+    await supabaseAdmin
+      .from("content_usage")
+      .update(updatePayload)
+      .eq("id", usageRow.id);
+  } else {
+    await supabaseAdmin.from("content_usage").insert({
+      user_id: user.id,
+      usage_month: usageMonth,
+      videos_used: usageType === "video" ? 1 : 0,
+      stories_used: usageType === "story" ? 1 : 0,
+      posts_used: usageType === "post" ? 1 : 0,
+    });
+  }
+
+  return NextResponse.json({
+    success: true,
+    mode: "async_reel",
+    jobId: jobRow.id,
+status: jobRow.status,
+createdAt: jobRow.created_at,
+    usageType,
+    usage: {
+      used: newUsed,
+      limit,
+      remaining: Math.max(limit - newUsed, 0),
+    },
+  });
+}
 
     const assetKind = getAssetKind(contentType);
     const aspectRatio = getAspectRatio(contentType);
@@ -847,6 +1002,14 @@ smartControlsPromptBlock,
         posts_used: usageType === "post" ? 1 : 0,
       });
     }
+
+    void faceImageUrl;
+    void coverImageUrl;
+    void referenceImages;
+    void shotPresetId;
+    void personaReferenceImages;
+    void selectBestCandidate;
+    void ({} as GeneratedCandidate);
 
     return NextResponse.json({
       success: true,

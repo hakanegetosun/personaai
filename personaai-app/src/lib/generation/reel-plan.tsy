@@ -1,0 +1,192 @@
+import type { AppPlan, MotionLevel } from "@/lib/plans/capabilities";
+
+export type TrendSignals = {
+  hooks: string[];
+  audioMoods: string[];
+  formats: string[];
+  shotPatterns: string[];
+  ctas: string[];
+  hashtags: string[];
+  summary: string[];
+};
+
+export type ReelPlanInput = {
+  personaName?: string | null;
+  niche?: string | null;
+  style?: string | null;
+  personality?: string | null;
+  planTitle?: string | null;
+  planDay?: string | null;
+  planType?: string | null;
+  brandDirection?: string | null;
+  advancedNotes?: string | null;
+  trendSignals: TrendSignals;
+};
+
+export type ReelPlanResult = {
+  viralAngle: string;
+  hook: string;
+  shotList: string[];
+  pacing: string[];
+  coverText: string;
+  audioDirection: string;
+  cta: string;
+  generatorPrompt: string;
+};
+
+function uniqueTop(items: Array<string | null | undefined>, limit = 6): string[] {
+  return [...new Set(items.map((x) => (x ?? "").trim()).filter(Boolean))].slice(0, limit);
+}
+
+export function buildReelPlan(input: ReelPlanInput): ReelPlanResult {
+  const hooks = uniqueTop(input.trendSignals.hooks, 5);
+  const formats = uniqueTop(input.trendSignals.formats, 5);
+  const shotPatterns = uniqueTop(input.trendSignals.shotPatterns, 5);
+  const audioMoods = uniqueTop(input.trendSignals.audioMoods, 5);
+  const ctas = uniqueTop(input.trendSignals.ctas, 5);
+
+  const hook =
+    hooks[0] ??
+    (input.planTitle ? `POV: ${input.planTitle}` : "Come with me");
+
+  const viralAngle =
+    input.planTitle && formats[0]
+      ? `${input.planTitle} presented in a ${formats[0]} style`
+      : input.planTitle
+      ? `${input.planTitle} as a creator-native vertical short video`
+      : formats[0] ?? "creator-native vertical short video";
+
+  const shotList = uniqueTop(
+    [
+      shotPatterns[0],
+      "fast intro frame with immediate visual hook",
+      "environment establishing shot",
+      "mid-action lifestyle shot",
+      "close detail payoff shot",
+      "ending frame with caption-safe composition",
+    ],
+    6
+  );
+
+  const pacing = uniqueTop(
+    [
+      "first 3 seconds must hook immediately",
+      audioMoods[0] ? `edit rhythm should match ${audioMoods[0]}` : null,
+      "phone-native realism, not cinematic ad energy",
+      "quick-cut but believable social pacing",
+      "persona identity consistency must stay strong",
+    ],
+    5
+  );
+
+  const coverText = input.planTitle ?? hook;
+  const audioDirection = audioMoods[0] ?? "upbeat creator-native social audio";
+  const cta = ctas[0] ?? "Save this for later";
+
+  const generatorPrompt = [
+    "Create a highly realistic vertical 9:16 short-form social video.",
+    "The result should feel like authentic Instagram Reels / TikTok creator content.",
+    `Core concept: ${input.planTitle ?? "creator lifestyle moment"}.`,
+    `Hook: ${hook}.`,
+    `Viral angle: ${viralAngle}.`,
+    input.personaName ? `Same exact persona identity as ${input.personaName}.` : null,
+    input.niche ? `Niche: ${input.niche}.` : null,
+    input.style ? `Visual style: ${input.style}.` : null,
+    input.personality ? `Personality tone: ${input.personality}.` : null,
+    input.brandDirection ? `Brand direction: ${input.brandDirection}.` : null,
+    input.advancedNotes ? `Advanced notes: ${input.advancedNotes}.` : null,
+    `Shot structure: ${shotList.join(" | ")}.`,
+    `Pacing notes: ${pacing.join(" | ")}.`,
+    `Audio direction: ${audioDirection}.`,
+    `CTA feeling: ${cta}.`,
+    "Natural motion, social-native framing, realistic environment, believable body movement.",
+    "No face distortion, no identity drift, no plastic skin, no glossy AI look.",
+    "Should look like premium but believable creator content, not a commercial ad.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    viralAngle,
+    hook,
+    shotList,
+    pacing,
+    coverText,
+    audioDirection,
+    cta,
+    generatorPrompt,
+  };
+}
+
+export type ShotMotionBudget = "low" | "medium" | "extreme";
+
+export type ReelShotPreset = {
+  id: string;
+  label: string;
+  motionBudget: ShotMotionBudget;
+  allowedPlans: AppPlan[];
+  videoPromptDirective: string;
+};
+
+export const REEL_SHOT_PRESETS: ReelShotPreset[] = [
+  {
+    id: "talking_selfie",
+    label: "Talking Selfie",
+    motionBudget: "low",
+    allowedPlans: ["pro", "creator", "agency"],
+    videoPromptDirective:
+      "slight natural lip movement, subtle blinking, minimal head sway",
+  },
+  {
+    id: "luxury_room_glance",
+    label: "Luxury Room Glance",
+    motionBudget: "low",
+    allowedPlans: ["pro", "creator", "agency"],
+    videoPromptDirective:
+      "camera slowly pushing in, subject glances naturally",
+  },
+  {
+    id: "balcony_talk",
+    label: "Balcony Talk",
+    motionBudget: "medium",
+    allowedPlans: ["creator", "agency"],
+    videoPromptDirective:
+      "outdoor breeze, hair slight movement, relaxed conversation energy",
+  },
+];
+
+export function getReelShotPreset(
+  shotPresetId: string
+): ReelShotPreset | null {
+  return (
+    REEL_SHOT_PRESETS.find((preset) => preset.id === shotPresetId) ?? null
+  );
+}
+
+export function resolveMotionLevelForPlan(
+  plan: AppPlan,
+  motionBudget: ShotMotionBudget
+): MotionLevel | null {
+  if (motionBudget === "extreme") {
+    return null;
+  }
+
+  if (motionBudget === "medium" && plan === "pro") {
+    return "low";
+  }
+
+  if (motionBudget === "low" || motionBudget === "medium") {
+    return motionBudget;
+  }
+
+  return null;
+}
+
+export function isShotAllowedForPlan(
+  plan: AppPlan,
+  shotPresetId: string
+): boolean {
+  const preset = getReelShotPreset(shotPresetId);
+  if (!preset) return false;
+  return preset.allowedPlans.includes(plan);
+}
