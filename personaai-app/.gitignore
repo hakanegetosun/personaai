@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+personaai-app-backup.tar.gz
+personaai-app-full.bundle
+backup-parts/
