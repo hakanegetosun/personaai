@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient as createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { resolvePlan } from "@/config/plans";
 import { generateImageContent } from "@/lib/generation/image";
@@ -7,6 +6,7 @@ import { resolveGenerationConfig, selectBestCandidate } from "@/lib/generation/p
 import type { GenerationRequestInput, GeneratedCandidate } from "@/lib/generation/types";
 import type { AppPlan, AllureProfile } from "@/lib/plans/capabilities";
 import { generateVideoContent } from "@/lib/generation/video";
+import { createClient } from "@/lib/supabase/server";
 
 type GenerateFormat = "reel" | "story" | "post";
 type ContentType = "reel" | "story" | "post";
@@ -519,7 +519,7 @@ export async function POST(
   req: NextRequest
 ): Promise<NextResponse<GenerateResponse>> {
   try {
-    const supabase = await createServerSupabase();
+const supabase = await createClient();
 
     const {
       data: { user },
