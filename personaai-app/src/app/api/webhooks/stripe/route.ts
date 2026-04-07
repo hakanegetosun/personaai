@@ -30,7 +30,6 @@ function mapStripePriceToPlan(priceId: string | null | undefined): {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-export async function POST(req: NextRequest): Promise<NextResponse> {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: "2026-02-25.clover",
   });
