@@ -1188,57 +1188,28 @@ useEffect(() => {
 
       const data = await res.json();
 
+      if (cancelled) return;
+
       if (!res.ok || !data.success || !data.job) {
+        setActiveJobId(null);
+        setJobStatus(null);
         return;
       }
-
-      if (cancelled) return;
 
       if (data.job.status === "queued" || data.job.status === "processing") {
         setActiveJobId(data.job.id);
         setJobStatus(data.job.status);
-      }
-    } catch (err) {
-      console.error("RESTORE ACTIVE JOB ERROR", err);
-    }
-  }
-
-  void restoreActiveJob();
-
-  return () => {
-    cancelled = true;
-  };
-}, [supabase]);
-
-useEffect(() => {
-  let cancelled = false;
-
-  async function restoreActiveJob() {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) return;
-
-      const res = await fetch(
-        `/api/generate/job/latest?userId=${encodeURIComponent(user.id)}`
-      );
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success || !data.job) {
         return;
       }
 
-      if (cancelled) return;
-
-      if (data.job.status === "queued" || data.job.status === "processing") {
-        setActiveJobId(data.job.id);
-        setJobStatus(data.job.status);
-      }
+      setActiveJobId(null);
+      setJobStatus(null);
     } catch (err) {
       console.error("RESTORE ACTIVE JOB ERROR", err);
+      if (!cancelled) {
+        setActiveJobId(null);
+        setJobStatus(null);
+      }
     }
   }
 
@@ -1277,6 +1248,10 @@ const res = await fetch(
       if (cancelled) return;
 
       setJobStatus(data.job.status);
+
+if (data.job.status !== "queued" && data.job.status !== "processing") {
+  setActiveJobId(null);
+}
 
       if (data.job.status === "completed" && data.job.video_url) {
         setGenerated({
