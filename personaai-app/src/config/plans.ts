@@ -31,7 +31,11 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     canCreatePersona: false,
     limits: { video: 0, post: 2, story: 2 },
     label: "Free Plan",
-    onDemand: { enabled: false, extraVideoPriceUsd: 0, extraVideoPack5PriceUsd: 0 },
+    onDemand: {
+      enabled: false,
+      extraVideoPriceUsd: 0,
+      extraVideoPack5PriceUsd: 0,
+    },
   },
 
   pro: {
@@ -39,29 +43,41 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     name: "Pro",
     price: 29,
     canCreatePersona: false,
-    limits: { video: 4, post: 16, story: 16 },
+    limits: { video: 3, post: 12, story: 12 },
     label: "Pro Plan",
-    onDemand: { enabled: true, extraVideoPriceUsd: 3.99, extraVideoPack5PriceUsd: 14.99 },
+    onDemand: {
+      enabled: true,
+      extraVideoPriceUsd: 3.79,
+      extraVideoPack5PriceUsd: 16.99,
+    },
   },
 
   creator: {
     id: "creator",
     name: "Creator",
-    price: 79,
+    price: 89,
     canCreatePersona: true,
-    limits: { video: 8, post: 30, story: 30 },
+    limits: { video: 8, post: 24, story: 24 },
     label: "Creator Plan",
-    onDemand: { enabled: true, extraVideoPriceUsd: 3.49, extraVideoPack5PriceUsd: 12.99 },
+    onDemand: {
+      enabled: true,
+      extraVideoPriceUsd: 3.49,
+      extraVideoPack5PriceUsd: 15.99,
+    },
   },
 
   agency: {
     id: "agency",
     name: "Agency",
-    price: 199,
+    price: 229,
     canCreatePersona: true,
-    limits: { video: 20, post: 75, story: 75 },
+    limits: { video: 20, post: 60, story: 60 },
     label: "Agency Plan",
-    onDemand: { enabled: true, extraVideoPriceUsd: 2.99, extraVideoPack5PriceUsd: 11.99 },
+    onDemand: {
+      enabled: true,
+      extraVideoPriceUsd: 3.19,
+      extraVideoPack5PriceUsd: 14.99,
+    },
   },
 };
 

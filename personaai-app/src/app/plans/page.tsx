@@ -96,7 +96,7 @@ const DISPLAY_PLANS: DisplayPlan[] = [
     accent: "linear-gradient(135deg,#ec4899,#a855f7)",
     border: "rgba(236,72,153,.35)",
     glow: "0 24px 70px rgba(236,72,153,.22)",
-    crossedMonthlyPrice: 99,
+    crossedMonthlyPrice: 109,
     idealFor: "Serious creators, personal brands, and advanced users",
     included: [
       "Everything in Pro",
@@ -123,7 +123,7 @@ const DISPLAY_PLANS: DisplayPlan[] = [
     accent: "linear-gradient(135deg,#fbbf24,#a855f7)",
     border: "rgba(251,191,36,.35)",
     glow: "0 24px 70px rgba(251,191,36,.18)",
-    crossedMonthlyPrice: 249,
+    crossedMonthlyPrice: 279,
     idealFor: "Studios, teams, power users, and multi-brand workflows",
     included: [
       "Everything in Creator",
@@ -157,7 +157,7 @@ function getUsageRows(planId: PlanId) {
   const plan = PLANS[planId];
 
   return [
-    `${plan.limits.video} videos / month`,
+    `${plan.limits.video} reels / month`,
     `${plan.limits.story} stories / month`,
     `${plan.limits.post} posts / month`,
   ];
@@ -174,7 +174,7 @@ function PlansPageInner() {
   );
 
   const router = useRouter();
-const searchParams = useSearchParams();
+  const searchParams = useSearchParams();
 
   const [billing, setBilling] = useState<Billing>("monthly");
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
@@ -183,7 +183,7 @@ const searchParams = useSearchParams();
   const [pageSuccess, setPageSuccess] = useState<string | null>(null);
   const [loadingCurrentPlan, setLoadingCurrentPlan] = useState(true);
 
-const planRefs = useRef<Partial<Record<PlanId, HTMLDivElement | null>>>({});
+  const planRefs = useRef<Partial<Record<PlanId, HTMLDivElement | null>>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -233,19 +233,19 @@ const planRefs = useRef<Partial<Record<PlanId, HTMLDivElement | null>>>({});
     };
   }, [supabase]);
 
-useEffect(() => {
-  const focus = searchParams.get("focus") as PlanId | null;
-  if (!focus) return;
+  useEffect(() => {
+    const focus = searchParams.get("focus") as PlanId | null;
+    if (!focus) return;
 
-  const el = planRefs.current[focus];
-  if (!el) return;
+    const el = planRefs.current[focus];
+    if (!el) return;
 
-  const timer = window.setTimeout(() => {
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, 180);
+    const timer = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 180);
 
-  return () => window.clearTimeout(timer);
-}, [searchParams]);
+    return () => window.clearTimeout(timer);
+  }, [searchParams]);
 
   async function handleChoosePlan(planId: PlanId) {
     setPageError(null);
@@ -473,25 +473,25 @@ useEffect(() => {
 
             const subtitle = billing === "monthly" ? "/ month" : "/ year";
             const isCurrent = currentPlanId === plan.id;
-const isFocused = searchParams.get("focus") === plan.id;
+            const isFocused = searchParams.get("focus") === plan.id;
             const usageRows = getUsageRows(plan.id);
 
             return (
-<div
-  key={plan.id}
-  ref={(el) => {
-    planRefs.current[plan.id] = el;
-  }}
-  style={{
+              <div
+                key={plan.id}
+                ref={(el) => {
+                  planRefs.current[plan.id] = el;
+                }}
+                style={{
                   borderRadius: 24,
                   padding: 20,
                   background: "rgba(255,255,255,.04)",
-border: isFocused
-  ? "1px solid rgba(255,255,255,.22)"
-  : `1px solid ${displayPlan.border}`,
-boxShadow: isFocused
-  ? "0 0 0 1px rgba(255,255,255,.08), 0 28px 80px rgba(168,85,247,.28)"
-  : displayPlan.glow,
+                  border: isFocused
+                    ? "1px solid rgba(255,255,255,.22)"
+                    : `1px solid ${displayPlan.border}`,
+                  boxShadow: isFocused
+                    ? "0 0 0 1px rgba(255,255,255,.08), 0 28px 80px rgba(168,85,247,.28)"
+                    : displayPlan.glow,
                   position: "relative",
                   overflow: "hidden",
                 }}
@@ -628,22 +628,22 @@ boxShadow: isFocused
                         </div>
                       )}
 
-{isFocused && (
-  <div
-    style={{
-      fontSize: 10,
-      fontWeight: 800,
-      padding: "5px 9px",
-      borderRadius: 999,
-      background: "rgba(168,85,247,.14)",
-      border: "1px solid rgba(168,85,247,.24)",
-      color: "#f5d0fe",
-      whiteSpace: "nowrap",
-    }}
-  >
-    RECOMMENDED
-  </div>
-)}
+                      {isFocused && (
+                        <div
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 800,
+                            padding: "5px 9px",
+                            borderRadius: 999,
+                            background: "rgba(168,85,247,.14)",
+                            border: "1px solid rgba(168,85,247,.24)",
+                            color: "#f5d0fe",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          RECOMMENDED
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -892,90 +892,102 @@ boxShadow: isFocused
                     {getButtonLabel(plan.id, currentPlanId, loadingPlanId)}
                   </button>
 
-                  {plan.onDemand.enabled && (
-                    <div
-                      style={{
-                        marginTop: 14,
-                        borderRadius: 16,
-                        padding: 14,
-                        background:
-                          "linear-gradient(135deg,rgba(168,85,247,.06),rgba(236,72,153,.05))",
-                        border: "1px solid rgba(255,255,255,.07)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 800,
-                          color: "rgba(255,255,255,.38)",
-                          textTransform: "uppercase",
-                          letterSpacing: 1.1,
-                          marginBottom: 8,
-                        }}
-                      >
-                        Extra video pricing
-                      </div>
+{plan.onDemand.enabled && (
+  <div
+    style={{
+      marginTop: 14,
+      borderRadius: 16,
+      padding: 14,
+      background:
+        "linear-gradient(135deg,rgba(168,85,247,.06),rgba(236,72,153,.05))",
+      border: "1px solid rgba(255,255,255,.07)",
+    }}
+  >
+    <div
+      style={{
+        fontSize: 10,
+        fontWeight: 800,
+        color: "rgba(255,255,255,.38)",
+        textTransform: "uppercase",
+        letterSpacing: 1.1,
+        marginBottom: 8,
+      }}
+    >
+      Extra reel packs
+    </div>
 
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "rgba(255,255,255,.54)",
-                          lineHeight: 1.5,
-                          marginBottom: 10,
-                        }}
-                      >
-                        Need more video output this month? Buy extra generation without
-                        changing your plan.
-                      </div>
+    <div
+      style={{
+        fontSize: 12,
+        color: "rgba(255,255,255,.54)",
+        lineHeight: 1.5,
+        marginBottom: 10,
+      }}
+    >
+      Need more reel output this month? Buy extra reel packs without
+      changing your plan.
+    </div>
 
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 10,
-                          marginTop: 4,
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => handleExtraVideoPurchase(plan.id, 1)}
-                          style={{
-                            flex: 1,
-                            padding: "10px 12px",
-                            borderRadius: 12,
-                            border: "1px solid rgba(255,255,255,.10)",
-                            background: "rgba(255,255,255,.05)",
-                            color: "rgba(255,255,255,.90)",
-                            fontSize: 12,
-                            fontWeight: 800,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                          }}
-                        >
-                          Buy 1 · ${plan.onDemand.extraVideoPriceUsd.toFixed(2)}
-                        </button>
+    <div
+      style={{
+        display: "flex",
+        gap: 10,
+        marginTop: 4,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => handleExtraVideoPurchase(plan.id, 1)}
+        style={{
+          flex: 1,
+          padding: "10px 12px",
+          borderRadius: 12,
+          border: "1px solid rgba(255,255,255,.10)",
+          background: "rgba(255,255,255,.05)",
+          color: "rgba(255,255,255,.90)",
+          fontSize: 12,
+          fontWeight: 800,
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}
+      >
+        Buy 1 reel · ${plan.onDemand.extraVideoPriceUsd.toFixed(2)}
+      </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleExtraVideoPurchase(plan.id, 5)}
-                          style={{
-                            flex: 1,
-                            padding: "10px 12px",
-                            borderRadius: 12,
-                            border: "1px solid rgba(168,85,247,.28)",
-                            background:
-                              "linear-gradient(135deg,rgba(168,85,247,.16),rgba(236,72,153,.12))",
-                            color: "rgba(255,255,255,.95)",
-                            fontSize: 12,
-                            fontWeight: 800,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                          }}
-                        >
-                          Buy 5 · ${plan.onDemand.extraVideoPack5PriceUsd.toFixed(2)}
-                        </button>
-                      </div>
-                    </div>
-                  )}
+      <button
+        type="button"
+        onClick={() => handleExtraVideoPurchase(plan.id, 5)}
+        style={{
+          flex: 1,
+          padding: "10px 12px",
+          borderRadius: 12,
+          border: "1px solid rgba(168,85,247,.28)",
+          background:
+            "linear-gradient(135deg,rgba(168,85,247,.16),rgba(236,72,153,.12))",
+          color: "rgba(255,255,255,.95)",
+          fontSize: 12,
+          fontWeight: 800,
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}
+      >
+        Buy 5 reels · ${plan.onDemand.extraVideoPack5PriceUsd.toFixed(2)}
+      </button>
+    </div>
+
+    <div
+      style={{
+        fontSize: 11,
+        color: "rgba(255,255,255,.42)",
+        lineHeight: 1.5,
+        marginTop: 10,
+      }}
+    >
+      Packs are tied to the plan they were purchased on, expire after 30 days,
+      and cannot be transferred across plan tiers.
+    </div>
+  </div>
+)}
                 </div>
               </div>
             );
