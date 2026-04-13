@@ -67,4 +67,37 @@ export const PRESET_INFLUENCERS: PresetInfluencer[] = [
     bio: "Luxury fashion persona for premium brand aesthetics, styling tips, and polished content.",
     tags: ["fashion", "luxury", "premium"],
   },
+  {
+    id: "preset-lina-vale",
+    name: "Lina Vale",
+    niche: "beauty",
+    gender: "female",
+    style: "luxury",
+    face_image_url:
+      "https://ctddvjznktqecgebldzt.supabase.co/storage/v1/object/public/preset-personas/lina-vale/Cover.jpg",
+    bio: "Soft luxury beauty and lifestyle persona for feminine editorials, warm indoor aesthetics, and polished premium creator content.",
+    tags: ["beauty", "luxury", "lifestyle"],
+  },
+{
+  id: "preset-aria-noir",
+  name: "Aria Noir",
+  niche: "beauty",
+  gender: "female",
+  style: "luxury",
+  face_image_url:
+    "https://ctddvjznktqecgebldzt.supabase.co/storage/v1/object/public/preset-personas/aria-noir/Cover.jpg",
+  bio: "Luxury editorial persona for golden-hour beauty campaigns and premium feminine content.",
+  tags: ["beauty", "luxury", "editorial"],
+},
+{
+  id: "preset-sera-monroe",
+  name: "Sera Monroe",
+  niche: "lifestyle",
+  gender: "female",
+  style: "luxury",
+  face_image_url:
+    "https://ctddvjznktqecgebldzt.supabase.co/storage/v1/object/public/preset-personas/sera-monroe/Cover.jpg",
+  bio: "Luxury lifestyle persona for soft glam city visuals, premium fashion content, and aspirational brand-safe storytelling.",
+  tags: ["lifestyle", "luxury", "fashion"],
+},
 ];

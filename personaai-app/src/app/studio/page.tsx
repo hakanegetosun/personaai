@@ -5,6 +5,8 @@ import AppShell from "@/components/AppShell";
 import { createBrowserClient } from "@supabase/ssr";
 import { resolvePlan } from "@/config/plans";
 import ReelGenerationLoader from "@/components/ReelGenerationLoader";
+import PremiumBoostPanel from "@/components/studio/PremiumBoostPanel";
+import { getSafeReelDuration, isReelDurationAllowed, shouldShow15SecWarning } from "@/lib/generation/reel-duration";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -95,6 +97,17 @@ type ContentUsage = {
   story: { used: number; limit: number };
 };
 
+type CalendarEntryRow = {
+  id: string;
+  day_number: number;
+  content_date: string;
+  content_type: "story" | "reel" | "post";
+  title: string;
+  hook?: string | null;
+  caption?: string | null;
+  status: "planned" | "generated" | "published" | "failed";
+};
+
 type PersonaMetaRow = {
   advanced_prompt_notes?: string | null;
   brand_direction?: string | null;
@@ -165,6 +178,10 @@ const PRESET_PERSONAS: ActivePersona[] = [
   { id: "preset-mira-kline", name: "Mira Kline", type: "preset", source: "collection" },
   { id: "preset-alex-storm", name: "Alex Storm", type: "preset", source: "collection" },
   { id: "preset-sofia-reyes", name: "Sofia Reyes", type: "preset", source: "collection" },
+  { id: "preset-luna-vale", name: "Luna Vale", type: "preset", source: "collection" },
+  { id: "preset-lina-vale", name: "Lina Vale", type: "preset", source: "collection" },
+{ id: "preset-aria-noir", name: "Aria Noir", type: "preset", source: "collection" },
+{ id: "preset-sera-monroe", name: "Sera Monroe", type: "preset", source: "collection" },
 ];
 
 const DEFAULT_PERSONA: ActivePersona = PRESET_PERSONAS[0];
@@ -181,6 +198,25 @@ const BASE_PLAN: PlanItem[] = [
   { day: "Day 10", title: "Behind the scenes", type: "Post" },
   { day: "Day 12", title: "Community Q&A", type: "Story" },
 ];
+
+
+function formatCalendarTypeLabel(value: "story" | "reel" | "post"): string {
+  if (value === "story") return "Story";
+  if (value === "post") return "Post";
+  return "Reel";
+}
+
+function mapCalendarRowsToPlan(rows: CalendarEntryRow[]): PlanItem[] {
+  return rows
+    .slice()
+    .sort((a, b) => a.day_number - b.day_number)
+    .map((row) => ({
+      day: `Day ${row.day_number}`,
+      title: row.title,
+      type: formatCalendarTypeLabel(row.content_type),
+      locked: false,
+    }));
+}
 
 const SMART_CONTROL_CARDS: SmartControlCardConfig[] = [
   {
@@ -736,7 +772,6 @@ function OnDemandPanel({
             {fmtUsd(singlePrice)}
           </div>
         </button>
-
         <button
           type="button"
           onClick={() => console.log("buy 5")}
@@ -825,6 +860,7 @@ const [allureMode, setAllureMode] = useState(false);
   const [plan, setPlan] = useState<PlanItem[]>(
     BASE_PLAN.map((item) => ({ ...item, locked: true }))
   );
+  const [calendarRows, setCalendarRows] = useState<CalendarEntryRow[]>([]);
 
   const [generated, setGenerated] = useState<GeneratedResult | null>(null);
   const [usageInfo, setUsageInfo] = useState<{
@@ -840,6 +876,10 @@ const [jobStatus, setJobStatus] = useState<
 >(null);
 
   const [userPlan, setUserPlan] = useState<ResolvedPlan | null>(null);
+  const [selectedBoost, setSelectedBoost] = useState<"allure" | "consistency" | null>(null);
+  const [freeAllureRemaining, setFreeAllureRemaining] = useState(0);
+  const [freeConsistencyRemaining, setFreeConsistencyRemaining] = useState(0);
+  const [reelDuration, setReelDuration] = useState<5 | 10 | 15>(10);
   const [contentUsage, setContentUsage] = useState<ContentUsage | null>(null);
 
   const [customPersonas, setCustomPersonas] = useState<ActivePersona[]>([]);
@@ -1291,14 +1331,14 @@ if (data.job.status !== "queued" && data.job.status !== "processing") {
   };
 }, [activeJobId, supabase]);
 
-  function selectPersona(persona: ActivePersona) {
-    setActivePersona(persona);
-    setShowPersonaDropdown(false);
+function selectPersona(persona: ActivePersona) {
+  setActivePersona(persona);
+  setShowPersonaDropdown(false);
 
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(ACTIVE_PERSONA_KEY, JSON.stringify(persona));
-    }
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(ACTIVE_PERSONA_KEY, JSON.stringify(persona));
   }
+}
 
   async function handleSavePersonaMeta() {
     setPersonaMetaMessage(null);
@@ -1397,7 +1437,10 @@ headers: {
       : [],
     identityLock,
     allureMode,
-  }),
+    allureBoost: selectedBoost === "allure",
+    extraConsistency: selectedBoost === "consistency",
+    durationSeconds: contentType === "reel" ? getSafeReelDuration(selectedBoost, reelDuration) : null
+}),
 });
 
 const rawText = await res.text();
@@ -1628,11 +1671,33 @@ setUsageInfo(data.usage);
                       Collection
                     </div>
 
-                    {PRESET_PERSONAS.map((p) => (
-                      <button
+{PRESET_PERSONAS.map((p) => (
+                      <div
                         key={p.id}
-                        type="button"
-                        onClick={() => selectPersona(p)}
+                        role="button"
+                        tabIndex={0}
+                        onTouchStart={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          selectPersona(p);
+                        }}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          selectPersona(p);
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          selectPersona(p);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            selectPersona(p);
+                          }
+                        }}
                         style={{
                           display: "flex",
                           alignItems: "center",
@@ -1643,7 +1708,6 @@ setUsageInfo(data.usage);
                             activePersona.id === p.id
                               ? "rgba(168,85,247,.14)"
                               : "transparent",
-                          border: "none",
                           color:
                             activePersona.id === p.id
                               ? "rgba(200,150,255,.95)"
@@ -1653,6 +1717,13 @@ setUsageInfo(data.usage);
                           cursor: "pointer",
                           textAlign: "left",
                           fontFamily: "inherit",
+                          touchAction: "manipulation",
+                          WebkitTapHighlightColor: "transparent",
+                          position: "relative",
+                          zIndex: 20,
+                          pointerEvents: "auto",
+                          userSelect: "none",
+                          WebkitUserSelect: "none",
                         }}
                       >
                         <div
@@ -1665,7 +1736,7 @@ setUsageInfo(data.usage);
                           }}
                         />
                         {p.name}
-                      </button>
+                      </div>
                     ))}
 
                     {customPersonas.length > 0 && (
@@ -1890,7 +1961,7 @@ setUsageInfo(data.usage);
             }}
           >
             {tab === "calendar"
-              ? "30-Day Calendar"
+              ? "Monthly Content Calendar"
               : tab === "notes"
               ? "Advanced Notes"
               : "Brand Direction"}
@@ -2388,7 +2459,7 @@ opacity: locked ? 0.72 : 1,
                       textTransform: "uppercase",
                     }}
                   >
-                    Next posts
+                    Upcoming content
                   </div>
 
                   <button
@@ -2469,7 +2540,142 @@ opacity: locked ? 0.72 : 1,
                 />
               )}
 
-              {matchedPlanItem && (
+              
+              {contentType === "reel" && (
+                <div
+                  style={{
+                    marginTop: 14,
+                    borderRadius: 16,
+                    padding: "12px 12px 11px",
+                    background: "rgba(255,255,255,.03)",
+                    border: "1px solid rgba(255,255,255,.07)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      marginBottom: 10,
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          color: "rgba(255,255,255,.82)",
+                          fontSize: 12,
+                          fontWeight: 800,
+                          letterSpacing: 0.2,
+                        }}
+                      >
+                        Reel Duration
+                      </div>
+                      <div
+                        style={{
+                          color: "rgba(255,255,255,.34)",
+                          fontSize: 10,
+                          marginTop: 3,
+                        }}
+                      >
+                        Choose clip length for this generation.
+                      </div>
+                    </div>
+
+                    {selectedBoost === "consistency" && (
+                      <div
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: 999,
+                          background: "rgba(139,92,246,.12)",
+                          border: "1px solid rgba(139,92,246,.22)",
+                          color: "rgba(196,181,253,.86)",
+                          fontSize: 9,
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: ".08em",
+                          flexShrink: 0,
+                        }}
+                      >
+                        Extra Consistency
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {([5, 10, 15] as const).map((sec) => {
+                      const disabled = !isReelDurationAllowed(selectedBoost, sec);
+                      const active = reelDuration === sec;
+
+                      return (
+                        <button
+                          key={sec}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => {
+                            if (!disabled) setReelDuration(sec);
+                          }}
+                          style={{
+                            flex: 1,
+                            height: 38,
+                            borderRadius: 11,
+                            border: active
+                              ? "1px solid rgba(168,85,247,.48)"
+                              : "1px solid rgba(255,255,255,.09)",
+                            background: active
+                              ? "linear-gradient(135deg,rgba(168,85,247,.18),rgba(236,72,153,.12))"
+                              : "rgba(255,255,255,.04)",
+                            color: disabled
+                              ? "rgba(255,255,255,.22)"
+                              : active
+                              ? "rgba(255,255,255,.96)"
+                              : "rgba(255,255,255,.62)",
+                            fontSize: 12,
+                            fontWeight: 800,
+                            cursor: disabled ? "not-allowed" : "pointer",
+                            opacity: disabled ? 0.5 : 1,
+                            transition: "all .18s ease",
+                          }}
+                        >
+                          {sec}s
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedBoost === "consistency" && (
+                    <div
+                      style={{
+                        marginTop: 9,
+                        color: "rgba(255,255,255,.28)",
+                        fontSize: 10.5,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      15s is unavailable in Extra Consistency mode to preserve stronger identity stability.
+                    </div>
+                  )}
+
+                  {contentType === "reel" && shouldShow15SecWarning(selectedBoost, reelDuration) && (
+                    <div
+                      style={{
+                        marginTop: 9,
+                        borderRadius: 10,
+                        padding: "9px 10px",
+                        background: "rgba(245,158,11,.08)",
+                        border: "1px solid rgba(245,158,11,.18)",
+                        color: "rgba(253,224,71,.88)",
+                        fontSize: 10.5,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      Face consistency may be slightly lower on 15-second reels.
+                    </div>
+                  )}
+                </div>
+              )}
+
+{matchedPlanItem && (
                 <div
                   style={{
                     marginBottom: 10,
@@ -3012,6 +3218,24 @@ disabled={
                   </button>
                 </div>
 
+                <div style={{ marginTop: 16 }}>
+                  <PremiumBoostPanel
+                    currentPlan={
+                      userPlan?.id?.toLowerCase().includes("agency")
+                        ? "agency"
+                        : userPlan?.id?.toLowerCase().includes("creator")
+                        ? "creator"
+                        : "pro"
+                    }
+                    freeAllureRemaining={freeAllureRemaining}
+                    freeConsistencyRemaining={freeConsistencyRemaining}
+                    selectedBoost={selectedBoost}
+                    onSelectBoost={(mode) => {
+                      setSelectedBoost(mode);
+                    }}
+                  />
+                </div>
+
                 {personaMetaMessage && (
                   <div
                     style={{
@@ -3023,26 +3247,6 @@ disabled={
                     {personaMetaMessage}
                   </div>
                 )}
-              </div>
-
-              <div style={{ display: "flex", gap: 10, marginTop: 2 }}>
-                {[
-                  "linear-gradient(135deg,#A855F7,#ec4899)",
-                  "linear-gradient(135deg,#6366f1,#3b82f6)",
-                  "linear-gradient(135deg,#EC4899,#f97316)",
-                ].map((g, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      flex: 1,
-                      height: 44,
-                      borderRadius: 12,
-                      background: g,
-                      opacity: 0.55,
-                      border: "1px solid rgba(255,255,255,.10)",
-                    }}
-                  />
-                ))}
               </div>
             </div>
           )}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { generateImageContent } from "@/lib/generation/image";
 import { generateVideoContent } from "@/lib/generation/video";
+import { normalizeProviderRoute } from "@/lib/generation/provider-routing";
 
 async function uploadRemoteVideoToSupabaseStorage(params: {
   remoteUrl: string;
@@ -143,6 +144,23 @@ export async function GET(req: NextRequest) {
       throw new Error("Job payload missing.");
     }
 
+    const providerRoute = normalizeProviderRoute(
+      (fullJob.provider_route as string | null | undefined) ?? null
+    );
+
+    const requestedDuration =
+      fullJob.duration_seconds === 5 ||
+      fullJob.duration_seconds === 10 ||
+      fullJob.duration_seconds === 15
+        ? fullJob.duration_seconds
+        : 5;
+
+    console.log("[process-reels] job routing", {
+      jobId: fullJob.id,
+      providerRoute,
+      requestedDuration,
+    });
+
     const referenceImageUrl =
       payload.personaFaceImageUrl ??
       payload.faceImageUrl ??
@@ -156,13 +174,23 @@ export async function GET(req: NextRequest) {
       ...(Array.isArray(payload.references) ? payload.references : []),
     ].filter(Boolean) as string[];
 
+    const imageIdentityLock =
+      providerRoute === "extra_consistency"
+        ? true
+        : (payload.identityLock ?? true);
+
+    const imageAllureMode =
+      providerRoute === "standard"
+        ? (payload.allureMode ?? false)
+        : true;
+
     const imageResult = await generateImageContent({
       personaName: payload.personaName ?? "Persona",
       contentType: "story",
       referenceImageUrl,
       referenceImageUrls,
-      identityLock: payload.identityLock ?? true,
-      allureMode: payload.allureMode ?? false,
+      identityLock: imageIdentityLock,
+      allureMode: imageAllureMode,
       niche: payload.niche ?? null,
       style: payload.personaStyle ?? null,
       personality: payload.personaPersonality ?? null,
@@ -201,6 +229,11 @@ visualDoNotUse: Array.isArray(payload.advancedPromptPayload?.visualDoNotUse)
       "Vertical 9:16 social media reel.",
       "Natural motion, realistic face consistency, single continuous shot.",
       "No scene cuts. No face distortion. Keep identity stable.",
+      providerRoute === "extra_consistency"
+        ? "Identity preservation has the highest priority."
+        : providerRoute === "allure_boost"
+        ? "Use a more premium, expressive, elevated social result."
+        : "Keep the result creator-native and balanced.",
     ];
 
     const finalPrompt = reelPromptParts.filter(Boolean).join(" ");
@@ -208,7 +241,7 @@ visualDoNotUse: Array.isArray(payload.advancedPromptPayload?.visualDoNotUse)
     const videoResult = await generateVideoContent({    
   prompt: finalPrompt,
       startImageUrl: imageResult.imageUrl,
-      duration: 5,
+      duration: requestedDuration,
       generateAudio: false,
       aspectRatio: "9:16",
     });
@@ -235,6 +268,11 @@ const storedVideo = await uploadRemoteVideoToSupabaseStorage({
       payload.smartControls?.motion
         ? `Motion: ${payload.smartControls.motion}`
         : null,
+      providerRoute === "allure_boost"
+        ? "Mode: Allure Boost"
+        : providerRoute === "extra_consistency"
+        ? "Mode: Extra Consistency"
+        : "Mode: Standard",
     ]
       .filter(Boolean)
       .join(" | ");

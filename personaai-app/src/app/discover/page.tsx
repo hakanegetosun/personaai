@@ -2,331 +2,28 @@
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
+import { DISCOVER_PRESETS } from "@/data/discover-presets";
+import type { DiscoverPreset } from "@/data/discover-presets";
 
+type Persona = DiscoverPreset;
+type SwipeDir = "left" | "right" | null;
 type ReferenceItem = {
-  id: number;
-  title: string;
-  vibe: string;
+  src?: string;
+  alt?: string;
   gradient?: string;
   imageUrl?: string;
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  [key: string]: string | number | boolean | undefined;
 };
 
-type RecommendedControls = {
-  look: string;
-  motion: string;
-  strategy: string;
-  priorities: string[];
-};
-
-type Persona = {
-  id: number;
-  name: string;
-  handle: string;
-  initials: string;
-  badge: string;
-  coverImageUrl?: string;
-  tags: string[];
-  chips: string[];
-  glowA: string;
-  glowB: string;
-  bg: string;
-  bio: string;
-  bestFor: string[];
-  category: string;
-  niche: string;
-  recommended: RecommendedControls;
-  references: ReferenceItem[];
-};
-
-type SwipeDir = "left" | "right" | null;
-
-const ACTIVE_PERSONA_KEY = "active_persona";
-
-const PERSONAS: Persona[] = [
-  {
-    id: 1,
-    name: "Siena Stone",
-    handle: "@siena.stone",
-    initials: "SS",
-    badge: "94%",
-    tags: ["Fitness", "Viral"],
-    chips: ["High eng.", "Strong brand", "Viral-ready"],
-    glowA: "rgba(168,85,247,.60)",
-    glowB: "rgba(236,72,153,.40)",
-    bg: "linear-gradient(170deg,#1a0a2e 0%,#2d1060 40%,#180830 75%,#0f0820 100%)",
-    bio: "High-energy fitness creator with strong short-form potential. Great for gym reels, routine content, wellness hooks, and bold creator-style performance posts.",
-    bestFor: [
-      "Gym routine reels",
-      "Meal prep content",
-      "Morning wellness stories",
-      "High-hook short form",
-    ],
-    category: "Fitness",
-    niche: "Wellness / Performance",
-    recommended: {
-      look: "Luxury Realism",
-      motion: "Fast Hooky",
-      strategy: "Viral Reach",
-      priorities: ["Face Consistency", "Realism", "Hook Strength"],
-    },
-    references: [
-      {
-        id: 11,
-        title: "Gym mirror check",
-        vibe: "strong hook",
-        gradient: "linear-gradient(160deg,#1b1030,#522082,#1a0b2a)",
-      },
-      {
-        id: 12,
-        title: "Breakfast counter",
-        vibe: "healthy lifestyle",
-        gradient: "linear-gradient(160deg,#24112d,#7a265b,#241028)",
-      },
-      {
-        id: 13,
-        title: "Pilates studio",
-        vibe: "clean fitness",
-        gradient: "linear-gradient(160deg,#171833,#3244a0,#121429)",
-      },
-      {
-        id: 14,
-        title: "Outdoor run prep",
-        vibe: "natural movement",
-        gradient: "linear-gradient(160deg,#102128,#1f6d5c,#0b1818)",
-      },
-      {
-        id: 15,
-        title: "Post-workout selfie",
-        vibe: "phone native",
-        gradient: "linear-gradient(160deg,#2a1323,#7c2454,#1a0b17)",
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: "Luna Vale",
-    handle: "@luna.vale",
-    initials: "LV",
-    badge: "87%",
-    tags: ["Lifestyle", "Fashion"],
-    chips: ["Aesthetic", "Premium", "Top-tier"],
-    glowA: "rgba(99,102,241,.60)",
-    glowB: "rgba(59,130,246,.40)",
-    bg: "linear-gradient(170deg,#0a1a2e 0%,#103060 40%,#0c1e40 75%,#08152e 100%)",
-    bio: "Premium lifestyle and fashion persona designed for polished but believable content. Strong fit for city looks, daily outfit updates, and aspirational creator-style posting.",
-    bestFor: ["OOTD content", "Cafe lifestyle posts", "Travel fit checks", "Soft premium reels"],
-    category: "Lifestyle",
-    niche: "Fashion / City Aesthetic",
-    recommended: {
-      look: "Clean Editorial",
-      motion: "Balanced",
-      strategy: "Brand Safe",
-      priorities: ["Realism", "Brand Match", "Face Consistency"],
-    },
-    references: [
-      {
-        id: 21,
-        title: "City coffee walk",
-        vibe: "casual chic",
-        gradient: "linear-gradient(160deg,#0f1f37,#294d8b,#0d1731)",
-      },
-      {
-        id: 22,
-        title: "Mirror outfit frame",
-        vibe: "fashion update",
-        gradient: "linear-gradient(160deg,#171735,#4b4db2,#131428)",
-      },
-      {
-        id: 23,
-        title: "Night dinner look",
-        vibe: "elevated lifestyle",
-        gradient: "linear-gradient(160deg,#1b1226,#663779,#140d1f)",
-      },
-      {
-        id: 24,
-        title: "Airport fit",
-        vibe: "travel luxury",
-        gradient: "linear-gradient(160deg,#12263b,#285f8b,#0f1728)",
-      },
-      {
-        id: 25,
-        title: "Studio portrait feel",
-        vibe: "editorial",
-        gradient: "linear-gradient(160deg,#15192a,#404b91,#111420)",
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: "Mira Kline",
-    handle: "@mira.kline",
-    initials: "MK",
-    badge: "91%",
-coverImageUrl:
-  "https://ctddvjznktqecgebldzt.supabase.co/storage/v1/object/public/preset-personas/mira-kline/Cover.png",
-    tags: ["Model", "Beauty"],
-    chips: ["Luxury", "Brand-fit", "Niche-auth."],
-    glowA: "rgba(236,72,153,.60)",
-    glowB: "rgba(168,85,247,.40)",
-    bg: "linear-gradient(170deg,#1a0a18 0%,#601040 40%,#3a0828 75%,#200a18 100%)",
-    bio: "Luxury beauty and model persona with strong premium brand compatibility. Best for soft glam, beauty storytelling, confident portrait-led lifestyle content, and polished creator visuals.",
-    bestFor: ["Beauty campaigns", "Luxury selfies", "Night-out content", "Soft glam storytelling"],
-    category: "Beauty",
-    niche: "Luxury / Personal Brand",
-    recommended: {
-      look: "Luxury Realism",
-      motion: "Cinematic Social",
-      strategy: "Conversion",
-      priorities: ["Face Consistency", "Realism", "Brand Match"],
-    },
-references: [
-  {
-    id: 31,
-    title: "Restaurant candid",
-    vibe: "quiet luxury",
-    imageUrl:
-      "https://ctddvjznktqecgebldzt.supabase.co/storage/v1/object/public/preset-personas/mira-kline/Ref1.png",
-  },
-  {
-    id: 32,
-    title: "Mirror glam prep",
-    vibe: "beauty routine",
-    imageUrl:
-      "https://ctddvjznktqecgebldzt.supabase.co/storage/v1/object/public/preset-personas/mira-kline/Ref2.jpeg",
-  },
-  {
-    id: 33,
-    title: "Car selfie mood",
-    vibe: "realistic luxury",
-    gradient: "linear-gradient(160deg,#1a1530,#5b3bb8,#120f24)",
-  },
-  {
-    id: 34,
-    title: "Skincare counter",
-    vibe: "soft beauty",
-    gradient: "linear-gradient(160deg,#231221,#76456a,#180d15)",
-  },
-  {
-    id: 35,
-    title: "Dinner table close-up",
-    vibe: "premium realism",
-    gradient: "linear-gradient(160deg,#291411,#8f4730,#1a0d0c)",
-  },
-],
-  },
-  {
-    id: 4,
-    name: "Nova Reed",
-    handle: "@nova.reed",
-    initials: "NR",
-    badge: "89%",
-    tags: ["Tech", "Creator"],
-    chips: ["Gen-Z", "Edu-tainment", "High reach"],
-    glowA: "rgba(52,211,153,.50)",
-    glowB: "rgba(59,130,246,.40)",
-    bg: "linear-gradient(170deg,#081a18 0%,#0d4035 40%,#092a24 75%,#061510 100%)",
-    bio: "Tech and creator-focused persona built for informative but social-native content. Great for software demos, growth tips, creator education, and modern productivity content.",
-    bestFor: ["AI tutorials", "Productivity clips", "Tech creator reels", "Educational social posts"],
-    category: "Tech",
-    niche: "Education / Creator Economy",
-    recommended: {
-      look: "Phone Native",
-      motion: "Balanced",
-      strategy: "Community",
-      priorities: ["Realism", "Trend Fit", "Hook Strength"],
-    },
-    references: [
-      {
-        id: 41,
-        title: "Desk setup reel",
-        vibe: "creator desk",
-        gradient: "linear-gradient(160deg,#0c1d1a,#1f6d5f,#091311)",
-      },
-      {
-        id: 42,
-        title: "Laptop cafe shot",
-        vibe: "remote work",
-        gradient: "linear-gradient(160deg,#102030,#2c6d8a,#0a131b)",
-      },
-      {
-        id: 43,
-        title: "Direct-to-camera tip",
-        vibe: "educational",
-        gradient: "linear-gradient(160deg,#131f28,#2f5371,#0c141b)",
-      },
-      {
-        id: 44,
-        title: "Phone-native explainer",
-        vibe: "social tech",
-        gradient: "linear-gradient(160deg,#13251e,#366b4f,#0c1713)",
-      },
-      {
-        id: 45,
-        title: "Workspace story",
-        vibe: "creator daily",
-        gradient: "linear-gradient(160deg,#16212c,#425676,#0e141c)",
-      },
-    ],
-  },
-  {
-    id: 5,
-    name: "Zara Voss",
-    handle: "@zara.voss",
-    initials: "ZV",
-    badge: "96%",
-    tags: ["Luxury", "Travel"],
-    chips: ["HNW audience", "Aspirational", "Collab-ready"],
-    glowA: "rgba(251,191,36,.45)",
-    glowB: "rgba(236,72,153,.38)",
-    bg: "linear-gradient(170deg,#1a140a 0%,#604010 40%,#3a2808 75%,#201408 100%)",
-    bio: "Aspirational luxury travel persona with strong premium visual fit. Works best for destination storytelling, boutique hotel content, dinner scenes, and elevated lifestyle campaigns.",
-    bestFor: ["Travel reels", "Luxury hotel content", "Brunch and sunset stories", "Destination campaigns"],
-    category: "Luxury",
-    niche: "Travel / Aspirational Lifestyle",
-    recommended: {
-      look: "Luxury Realism",
-      motion: "Cinematic Social",
-      strategy: "Brand Safe",
-      priorities: ["Brand Match", "Realism", "Face Consistency"],
-    },
-    references: [
-      {
-        id: 51,
-        title: "Hotel balcony view",
-        vibe: "luxury travel",
-        gradient: "linear-gradient(160deg,#261b0f,#8f6521,#1b1209)",
-      },
-      {
-        id: 52,
-        title: "Sunset rooftop",
-        vibe: "aspirational",
-        gradient: "linear-gradient(160deg,#2c1523,#8b3f67,#1a0d15)",
-      },
-      {
-        id: 53,
-        title: "Dinner destination look",
-        vibe: "premium lifestyle",
-        gradient: "linear-gradient(160deg,#20170d,#7a5325,#140f08)",
-      },
-      {
-        id: 54,
-        title: "Airport lounge fit",
-        vibe: "travel creator",
-        gradient: "linear-gradient(160deg,#1a1e26,#5c6b84,#12141a)",
-      },
-      {
-        id: 55,
-        title: "Poolside phone moment",
-        vibe: "vacation realism",
-        gradient: "linear-gradient(160deg,#0f2122,#2d8084,#0b1616)",
-      },
-    ],
-  },
-];
+const PERSONAS: Persona[] = DISCOVER_PRESETS;
 
 const SWIPE_COMMIT_PX = 88;
 const SWIPE_COMMIT_VEL = 0.42;
 const TAP_THRESHOLD_PX = 10;
+const ACTIVE_PERSONA_KEY = "ACTIVE_PERSONA";
 
 function StatChip({ label }: { label: string }) {
   return (
@@ -670,7 +367,7 @@ function PersonaCard({
     boxShadow:
       "0 22px 60px rgba(0,0,0,.36), 0 0 40px rgba(168,85,247,.12)",
     background: persona.coverImageUrl
-      ? `url(${persona.coverImageUrl}) center 18% / cover no-repeat`
+      ? `url(${persona.coverImageUrl}) center 22% / cover no-repeat`
       : "linear-gradient(135deg,rgba(168,85,247,.18),rgba(236,72,153,.14))",
     pointerEvents: "none",
   }}
@@ -1479,7 +1176,7 @@ function DiscoverDetailSheet({
 }
 
 export default function DiscoverPage() {
-  const [index, setIndex] = useState(0);
+const [index, setIndex] = useState(0);
   const [swipes, setSwipes] = useState(4);
   const [exitDir, setExitDir] = useState<SwipeDir>(null);
   const [animating, setAnimating] = useState(false);
@@ -1487,7 +1184,7 @@ export default function DiscoverPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeReferenceIndex, setActiveReferenceIndex] = useState(0);
 
-  const persona = useMemo(() => PERSONAS[index % PERSONAS.length], [index]);
+const persona = useMemo(() => PERSONAS[index % PERSONAS.length], [index]);
   const activeReference = persona.references[activeReferenceIndex] ?? null;
 
 const savePersona = useCallback((personaToSave: Persona) => {
@@ -1498,6 +1195,7 @@ const savePersona = useCallback((personaToSave: Persona) => {
 
   const normalizedPersona = {
     id: personaToSave.id,
+    preset_id: personaToSave.presetId,
     name: personaToSave.name,
     handle: personaToSave.handle,
     initials: personaToSave.initials,
@@ -1530,7 +1228,7 @@ const savePersona = useCallback((personaToSave: Persona) => {
     localStorage.setItem(
       ACTIVE_PERSONA_KEY,
       JSON.stringify({
-        id: `preset-discover-${personaToUse.id}`,
+id: personaToUse.presetId,
         name: personaToUse.name,
         type: "preset",
         source: "discover",
@@ -1548,7 +1246,7 @@ const savePersona = useCallback((personaToSave: Persona) => {
   );
 
   const handleExitDone = useCallback(() => {
-    setIndex((i) => i + 1);
+setIndex((i) => i + 1);
     setSwipes((s) => s + 1);
     setExitDir(null);
     setAnimating(false);

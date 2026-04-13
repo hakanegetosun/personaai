@@ -43,7 +43,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     name: "Pro",
     price: 29,
     canCreatePersona: false,
-    limits: { video: 3, post: 12, story: 12 },
+    limits: { video: 4, post: 12, story: 12 },
     label: "Pro Plan",
     onDemand: {
       enabled: true,

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { PRESET_INFLUENCERS } from "@/data/preset-influencers";
+import { DISCOVER_PRESETS } from "@/data/discover-presets";
 import { saveActivePersona, loadActivePersona } from "@/types/persona";
 import type { ActivePersona, PresetInfluencer } from "@/types/persona";
 import AppShell from "@/components/AppShell";
@@ -16,6 +17,7 @@ type NicheFilter = "all" | "fitness" | "fashion" | "lifestyle" | "business";
 
 type SavedPersona = {
   id: number;
+  preset_id?: string;
   name: string;
   handle: string;
   initials: string;
@@ -728,8 +730,17 @@ const handleSelectSavedPersona = (persona: SavedPersona) => {
 
   setSelectingSavedId(persona.id);
 
+  const matchedPreset = DISCOVER_PRESETS.find(
+    (preset) => preset.name.trim().toLowerCase() === persona.name.trim().toLowerCase()
+  );
+
+  const resolvedId =
+    typeof persona.preset_id === "string" && persona.preset_id.trim().length > 0
+      ? persona.preset_id
+      : matchedPreset?.presetId ?? String(persona.id);
+
   saveActivePersona({
-    id: String(persona.id),
+    id: resolvedId,
     name: persona.name,
     source: "discover",
     niche: persona.tags?.[0] ?? "",
@@ -740,7 +751,7 @@ const handleSelectSavedPersona = (persona: SavedPersona) => {
     references: Array.isArray(persona.references) ? persona.references : [],
   });
 
-  setActiveId(String(persona.id));
+  setActiveId(resolvedId);
   setActiveSource("discover");
   setOpenSavedPersona(null);
 

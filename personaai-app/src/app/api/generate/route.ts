@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { resolveBoostMode, getBoostPriceUsd } from "@/lib/generation/boost-routing";
+import { getOrCreateBoostEntitlement, hasFreeBoostAvailable, consumeFreeBoost } from "@/lib/generation/boost-entitlements";
 import { resolvePlan } from "@/config/plans";
 import { generateImageContent } from "@/lib/generation/image";
 import { resolveGenerationConfig, selectBestCandidate } from "@/lib/generation/pipeline";
@@ -389,6 +391,9 @@ type GenerateRequestBody = {
   }> | null;
   identityLock?: boolean;
   allureMode?: boolean;
+  allureBoost?: boolean;
+  extraConsistency?: boolean;
+  durationSeconds?: 5 | 10 | 15 | null;
 };
 
 type GenerateResponse =
@@ -539,6 +544,26 @@ if (userError || !user) {
 
     const body: GenerateRequestBody = await req.json().catch(() => ({}));
 
+    const allureBoost = body.allureBoost === true;
+    const extraConsistency = body.extraConsistency === true;
+    const requestedDuration =
+      body.durationSeconds === 5 || body.durationSeconds === 10 || body.durationSeconds === 15
+        ? body.durationSeconds
+        : null;
+
+    const providerRoute = resolveBoostMode({
+      allureBoost,
+      extraConsistency,
+    });
+
+    const safeDurationSeconds =
+      providerRoute === "extra_consistency" && requestedDuration === 15
+        ? 10
+        : requestedDuration;
+
+    let boostPurchaseRequired = false;
+    let boostChargeUsd: number | null = null;
+
     if (!body.personaId || !body.contentType || !body.shotPresetId) {
       return NextResponse.json(
         {
@@ -627,6 +652,25 @@ if (userError || !user) {
       .single();
 
     const currentPlanId: string | null = profile?.current_plan_id ?? null;
+
+    if (providerRoute !== "standard") {
+      const entitlement = await getOrCreateBoostEntitlement({
+        userId: user.id,
+        planId: currentPlanId,
+      });
+
+      const hasFree = hasFreeBoostAvailable(providerRoute, entitlement);
+
+      if (hasFree) {
+        await consumeFreeBoost({
+          entitlementId: entitlement.id,
+          mode: providerRoute,
+        });
+      } else {
+        boostPurchaseRequired = true;
+        boostChargeUsd = getBoostPriceUsd(providerRoute);
+      }
+    }
     const canUseAdvancedControls = canUseAdvancedPromptControls(currentPlanId);
 
     // resolvedPlan is used exclusively for usage limits, pricing, and onDemand checks
@@ -959,6 +1003,12 @@ createdAt: jobRow.created_at,
         title: content.title,
         caption: content.caption,
         content_type: contentType,
+        allure_boost: allureBoost,
+        extra_consistency: extraConsistency,
+        provider_route: providerRoute,
+        duration_seconds: null,
+        boost_charge_usd: boostChargeUsd,
+        boost_purchase_required: boostPurchaseRequired,
         asset_kind: assetKind,
         aspect_ratio: aspectRatio,
         type: contentType,

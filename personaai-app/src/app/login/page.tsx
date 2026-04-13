@@ -41,11 +41,11 @@ const emailId = useId();
       return;
     }
 
-let nextPath = "/studio";
+let nextPath = "/onboarding";
 
 if (typeof window !== "undefined") {
   const params = new URLSearchParams(window.location.search);
-  nextPath = params.get("next") || "/studio";
+  nextPath = params.get("next") || "/onboarding";
 }
 
 router.replace(nextPath);
